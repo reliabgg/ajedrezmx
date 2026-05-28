@@ -1,0 +1,26 @@
+# Local agent / IDE config
+.claude/
+
+# Plan tracking (binary SQLite + generated docs)
+# The on-disk authoritative state is here, but it's bulky and includes
+# generated markdown that auto-regenerates from ipman. Exports go to
+# version control as needed (see /tmp/p1-snapshot.json from plan close).
+.ipman/
+
+# Syncthing
+.stfolder/
+.stignore
+.stversions/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Editor scratch
+*.swp
+*.swo
+*~
+
+# Node (in case a build tool ever sneaks in)
+node_modules/
+*.log

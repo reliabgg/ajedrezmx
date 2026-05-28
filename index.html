@@ -522,6 +522,113 @@ body.hide-coords .rank-labels, body.hide-coords #file-labels { display: none; }
 .move-white { color: #ddd; }
 .move-black { color: #999; }
 
+/* Profile overlay (cubre toda la pantalla hasta sign-in) */
+.profile-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.profile-overlay.open { display: flex; }
+.profile-card {
+  background: var(--panel-bg);
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  padding: 28px 24px;
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.profile-card h2 {
+  color: var(--accent);
+  text-align: center;
+  font-size: 1.4rem;
+  letter-spacing: 3px;
+  margin: 0 0 6px;
+}
+.profile-subtitle {
+  color: var(--text-secondary);
+  text-align: center;
+  font-size: 0.9rem;
+  margin: 0;
+}
+.profile-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.profile-field > span {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+}
+.profile-field input {
+  padding: 9px 12px;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  font-size: 1rem;
+  font-family: 'Segoe UI', sans-serif;
+}
+.profile-field input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.profile-status {
+  font-size: 0.82rem;
+  min-height: 1em;
+  color: var(--text-muted);
+  text-align: center;
+}
+.profile-status.profile-err { color: #e74c3c; }
+.profile-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+.profile-btn-primary {
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+.profile-btn-primary:hover { background: var(--accent); opacity: 0.9; }
+#profile-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+.profile-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.profile-item:hover { border-color: var(--accent); }
+.profile-item-icon { font-size: 1.4rem; }
+.profile-item-info { flex: 1; min-width: 0; }
+.profile-item-name { color: var(--fg); font-weight: bold; }
+.profile-item-meta { font-size: 0.75rem; color: var(--text-muted); }
+.profile-item-pin { font-size: 0.85rem; color: var(--text-muted); }
+.profile-menu-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 /* Modal Acerca de — markdown renderizado */
 .about-rendered {
   font-family: 'Segoe UI', sans-serif;
@@ -955,6 +1062,93 @@ body.hide-coords .rank-labels, body.hide-coords #file-labels { display: none; }
 </head>
 <body>
 
+<!-- Profile-pick overlay: cubre toda la pantalla hasta que el usuario elige perfil -->
+<div class="profile-overlay" id="profile-overlay" style="display:none;">
+  <div class="profile-card">
+    <h2>♟ AjedrezMX</h2>
+    <div id="profile-pick-view">
+      <p class="profile-subtitle">¿Quién juega?</p>
+      <div id="profile-list"></div>
+      <button class="btn profile-btn-primary" onclick="profileShowCreate()">+ Crear perfil nuevo</button>
+    </div>
+
+    <div id="profile-create-view" style="display:none;">
+      <p class="profile-subtitle">Nuevo perfil</p>
+      <label class="profile-field">
+        <span>Nombre</span>
+        <input type="text" id="profile-create-name" maxlength="32" autocomplete="off" placeholder="Tu nombre">
+      </label>
+      <label class="profile-field">
+        <span>PIN opcional (4 dígitos)</span>
+        <input type="text" id="profile-create-pin" maxlength="4" inputmode="numeric" pattern="[0-9]{4}" autocomplete="off" placeholder="Dejá vacío si no querés PIN">
+      </label>
+      <div class="profile-status" id="profile-create-status"></div>
+      <div class="profile-actions">
+        <button class="btn" onclick="profileShowPick()">← Volver</button>
+        <button class="btn profile-btn-primary" onclick="profileCreateSubmit()">Comenzar</button>
+      </div>
+    </div>
+
+    <div id="profile-pin-view" style="display:none;">
+      <p class="profile-subtitle"><span id="profile-pin-greeting">Hola</span></p>
+      <label class="profile-field">
+        <span>Ingresá tu PIN</span>
+        <input type="password" id="profile-pin-input" maxlength="4" inputmode="numeric" pattern="[0-9]{4}" autocomplete="off">
+      </label>
+      <div class="profile-status" id="profile-pin-status"></div>
+      <div class="profile-actions">
+        <button class="btn" onclick="profileShowPick()">← Volver</button>
+        <button class="btn profile-btn-primary" onclick="profilePinSubmit()">Entrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Profile switch popover -->
+<div class="modal-overlay" id="profile-menu-modal" onclick="closeProfileMenu(event)">
+  <div class="modal" style="max-width:380px;">
+    <h2>👤 <span id="profile-menu-name"></span></h2>
+    <div class="profile-menu-actions">
+      <button class="btn" onclick="profileMenuEdit()">✎ Editar nombre o PIN</button>
+      <button class="btn" onclick="profileMenuSwitch()">🔄 Cambiar de perfil</button>
+      <button class="btn" onclick="profileMenuDelete()" style="color:#e74c3c;border-color:#e74c3c;">🗑 Borrar este perfil</button>
+    </div>
+    <button class="btn" onclick="closeProfileMenuBtn()">Cerrar</button>
+  </div>
+</div>
+
+<!-- Profile edit modal -->
+<div class="modal-overlay" id="profile-edit-modal" onclick="closeProfileEdit(event)">
+  <div class="modal" style="max-width:380px;">
+    <h2>Editar perfil</h2>
+    <label class="profile-field">
+      <span>Nombre</span>
+      <input type="text" id="profile-edit-name" maxlength="32" autocomplete="off">
+    </label>
+    <label class="profile-field">
+      <span>PIN nuevo (dejá vacío para quitar)</span>
+      <input type="text" id="profile-edit-pin" maxlength="4" inputmode="numeric" pattern="[0-9]{4}" autocomplete="off" placeholder="4 dígitos o vacío">
+    </label>
+    <div class="profile-status" id="profile-edit-status"></div>
+    <div class="profile-actions">
+      <button class="btn" onclick="closeProfileEditBtn()">Cancelar</button>
+      <button class="btn profile-btn-primary" onclick="profileEditSubmit()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Profile delete confirm -->
+<div class="modal-overlay" id="profile-delete-modal" onclick="closeProfileDelete(event)">
+  <div class="modal" style="max-width:380px;">
+    <h2>¿Borrar este perfil?</h2>
+    <div style="color:var(--text-secondary);font-size:0.9rem;">Se borrarán también <strong id="profile-delete-count">0</strong> partidas guardadas. Esta acción no se puede deshacer.</div>
+    <div style="display:flex;gap:12px;justify-content:center;margin-top:14px;">
+      <button class="btn" onclick="profileDeleteConfirm()" style="color:#e74c3c;border-color:#e74c3c;">Sí, borrar</button>
+      <button class="btn" onclick="closeProfileDeleteBtn()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
 <h1>♟ AjedrezMX</h1>
 
 <div class="lan-banner" id="lan-banner" style="display:none;">
@@ -989,6 +1183,7 @@ body.hide-coords .rank-labels, body.hide-coords #file-labels { display: none; }
   <button class="btn" onclick="openHistory()">Historial ▼</button>
   <button class="btn" onclick="openAbout()" title="Acerca de AjedrezMX y mejoras implementadas">ℹ Acerca de</button>
   <button class="btn" onclick="openSettings()" title="Configuración">⚙ Configuración</button>
+  <button class="btn" id="btn-profile" onclick="openProfileMenu()" title="Tu perfil"><span id="btn-profile-label">👤</span></button>
 </div>
 
 <div class="main-area">
@@ -1386,6 +1581,7 @@ Documento de referencia para usuarios y desarrolladores. Se actualiza incrementa
 - _(Fase 9)_ Audit responsive (29 asserts): `env(safe-area-inset-*)` con `max()` fallback en body y toast (iOS notch/home-indicator); toast con `max-width: calc(100vw - 32px)` y `word-break: break-word`; LAN banner con `flex-wrap: wrap` + `max-width: min(480px, calc(100vw - 16px))`; games-table-container con `overflow: auto`; `@media 700px` compacta modal h2 / games-table cells / lan-textarea para mobile.
 - _(Fase 9)_ Audit cross-browser estructural (33 asserts): matriz de versiones mínimas (Chrome 86+, Firefox 78+, Safari 14+ / iOS 14.5+, Chrome Android 88+). Guards confirmados: `webkitAudioContext` para Safari pre-14, `navigator.clipboard` con try/catch en cada call site, `typeof RTCPeerConnection` antes de constructor, `touch-action:none` en piezas. Sin uso de APIs bleeding-edge (`:has`, `dvh`, `aspect-ratio`, `@container`, `ResizeObserver`, `eval`).
 - _(Fase 9)_ Performance audit de `renderBoard` (13 asserts): mean 0.55ms / p50 0.30ms en node con DOM mockeado. Browser estimado 3-7ms incluyendo layout+paint. Margen vs 60fps (16.67ms): >2×. Confirmado que `pointermove` NO llama `renderBoard` (drag mueve overlay con `style.left/top`). Sin optimización aplicada per Karpathy.
+- _(Post-P1)_ Perfiles locales con PIN opcional (68 asserts). IndexedDB schema bump v1→v2: nuevo store `profiles` (`{id, name, pinHash?, createdAt, isGuest?}`) + índice `profileId` en `games`. Migración auto-crea perfil "Invitado" y asigna las games legacy. PIN vía SHA-256 (`crypto.subtle.digest`) en contextos seguros con lockout de 30s tras 3 intentos fallidos. Pantalla full-screen al cargar bloquea el juego hasta elegir o crear perfil. Botón `👤 nombre` en barra de controles abre menú con editar/cambiar perfil/borrar. `buildGameRecord` asigna `profileId` y usa nombre del perfil en `white`/`black` para 1p y LAN. `lanOnDCOpen` envía el nombre del perfil en el `hello`. PIN-protected re-prompt en cada arranque (sin sesión persistente).
 
 ---
 
@@ -1879,6 +2075,8 @@ let clockLastTickAt = 0;          // ms timestamp (performance.now() o Date.now(
 let clockIntervalId = null;
 let currentResult = '*';
 let gameStartTime = 0;
+let currentProfile = null;  // { id, name, pinHash, isGuest? } — null hasta que el usuario inicie sesión
+let _pinAttempts = {};      // { profileId: { count, lockUntilMs } } — anti brute-force local
 const TIME_CONTROL_STORAGE_KEY = 'chess_time_control';
 const TIME_PRESETS = [
   { label: 'Sin tiempo',   minutes: null, increment: 0 },
@@ -3919,7 +4117,8 @@ function lanOnDCOpen() {
   if (lanLocalColor == null) {
     lanLocalColor = (lanWizardState && lanWizardState.role === 'guest') ? 'b' : 'w';
   }
-  lanSend({ type: 'hello', protocol_version: LAN_PROTOCOL_VERSION, color: lanLocalColor, name: 'Jugador' });
+  const myName = (currentProfile && currentProfile.name) ? currentProfile.name : 'Jugador';
+  lanSend({ type: 'hello', protocol_version: LAN_PROTOCOL_VERSION, color: lanLocalColor, name: myName });
   if (typeof boardToFen === 'function') {
     try {
       const fen = boardToFen(board, turn, castlingRights, enPassantTarget, halfmoveClock, fullmoveNumber);
@@ -4395,13 +4594,18 @@ function applyCustomTimeControl() {
 }
 
 // ===================== PERSISTENCIA (IndexedDB) =====================
-// DB chess_games v1, store 'games' con keyPath 'id' autoIncrement.
-// Índices: date (ISO), mode ('1p'|'2p'|'lan'), result ('1-0'|'0-1'|'1/2-1/2'|'*').
+// DB chess_games v2.
+// Stores:
+//   - games: keyPath 'id' autoIncrement, índices date/mode/result/profileId.
+//   - profiles (v2+): keyPath 'id' autoIncrement, índice unique 'name'.
+// GameRecord ahora incluye profileId. Migración v1→v2: se crea un perfil
+// 'Invitado' y todas las games legacy quedan asignadas a él.
 // Todas las funciones retornan Promise.
 
 const IDB_NAME = 'chess_games';
-const IDB_VERSION = 1;
+const IDB_VERSION = 2;
 const IDB_STORE = 'games';
+const IDB_PROFILES = 'profiles';
 
 function openDB() {
   return new Promise((resolve, reject) => {
@@ -4411,16 +4615,159 @@ function openDB() {
     const req = idb.open(IDB_NAME, IDB_VERSION);
     req.onupgradeneeded = (e) => {
       const db = e.target.result;
+      const oldV = e.oldVersion || 0;
+      let store;
       if (!db.objectStoreNames.contains(IDB_STORE)) {
-        const store = db.createObjectStore(IDB_STORE, { keyPath: 'id', autoIncrement: true });
+        store = db.createObjectStore(IDB_STORE, { keyPath: 'id', autoIncrement: true });
         store.createIndex('date', 'date', { unique: false });
         store.createIndex('mode', 'mode', { unique: false });
         store.createIndex('result', 'result', { unique: false });
+      } else {
+        store = e.target.transaction.objectStore(IDB_STORE);
+      }
+      // v2: add profiles store + profileId index, migrate legacy games.
+      if (oldV < 2) {
+        if (!store.indexNames.contains('profileId')) {
+          store.createIndex('profileId', 'profileId', { unique: false });
+        }
+        if (!db.objectStoreNames.contains(IDB_PROFILES)) {
+          const pStore = db.createObjectStore(IDB_PROFILES, { keyPath: 'id', autoIncrement: true });
+          pStore.createIndex('name', 'name', { unique: true });
+          // Create the 'Invitado' profile (id will be 1 since autoIncrement starts at 1).
+          const guestReq = pStore.add({
+            name: 'Invitado',
+            pinHash: null,
+            createdAt: new Date().toISOString(),
+            isGuest: true,
+          });
+          guestReq.onsuccess = () => {
+            const guestId = guestReq.result;
+            // Migrate all existing games to this guest profile.
+            const cursorReq = store.openCursor();
+            cursorReq.onsuccess = (ev) => {
+              const cur = ev.target.result;
+              if (cur) {
+                if (cur.value.profileId == null) {
+                  cur.value.profileId = guestId;
+                  cur.update(cur.value);
+                }
+                cur.continue();
+              }
+            };
+          };
+        }
       }
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
   });
+}
+
+// ----- Perfiles: CRUD -----
+
+function listProfiles() {
+  return openDB().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction([IDB_PROFILES], 'readonly');
+    const req = tx.objectStore(IDB_PROFILES).getAll();
+    req.onsuccess = () => {
+      const arr = req.result || [];
+      arr.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      resolve(arr);
+    };
+    req.onerror = () => reject(req.error);
+  }));
+}
+
+function getProfile(id) {
+  return openDB().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction([IDB_PROFILES], 'readonly');
+    const req = tx.objectStore(IDB_PROFILES).get(id);
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror = () => reject(req.error);
+  }));
+}
+
+function createProfile(name, pinHash) {
+  const clean = String(name || '').trim().slice(0, 32);
+  if (!clean) return Promise.reject(new Error('El nombre no puede estar vacío'));
+  return openDB().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction([IDB_PROFILES], 'readwrite');
+    const req = tx.objectStore(IDB_PROFILES).add({
+      name: clean,
+      pinHash: pinHash || null,
+      createdAt: new Date().toISOString(),
+    });
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => {
+      const err = req.error;
+      if (err && err.name === 'ConstraintError') {
+        reject(new Error('Ya existe un perfil con ese nombre'));
+      } else {
+        reject(err);
+      }
+    };
+  }));
+}
+
+function updateProfile(id, fields) {
+  return openDB().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction([IDB_PROFILES], 'readwrite');
+    const store = tx.objectStore(IDB_PROFILES);
+    const getReq = store.get(id);
+    getReq.onsuccess = () => {
+      const cur = getReq.result;
+      if (!cur) { reject(new Error('Perfil no encontrado')); return; }
+      const updated = { ...cur, ...fields, id: cur.id };
+      const putReq = store.put(updated);
+      putReq.onsuccess = () => resolve(updated);
+      putReq.onerror = () => reject(putReq.error);
+    };
+    getReq.onerror = () => reject(getReq.error);
+  }));
+}
+
+function deleteProfile(id) {
+  return openDB().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction([IDB_PROFILES, IDB_STORE], 'readwrite');
+    // Borrar todas las games del perfil primero.
+    const gamesStore = tx.objectStore(IDB_STORE);
+    const idx = gamesStore.index('profileId');
+    const cursorReq = idx.openCursor(IDBKeyRange.only(id));
+    cursorReq.onsuccess = (ev) => {
+      const cur = ev.target.result;
+      if (cur) { cur.delete(); cur.continue(); }
+    };
+    tx.objectStore(IDB_PROFILES).delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  }));
+}
+
+// ----- PIN hashing -----
+// SHA-256 vía Web Crypto. Requiere contexto seguro (HTTPS/localhost/file://).
+// Sobre HTTP no-localhost, crypto.subtle es undefined → fallback degradado (sin PIN).
+
+function isCryptoSubtleAvailable() {
+  return typeof crypto !== 'undefined' && crypto.subtle && typeof crypto.subtle.digest === 'function';
+}
+
+async function hashPin(pin) {
+  if (!isCryptoSubtleAvailable()) throw new Error('Web Crypto no disponible en este contexto');
+  const data = new TextEncoder().encode(String(pin));
+  const buf = await crypto.subtle.digest('SHA-256', data);
+  const bytes = new Uint8Array(buf);
+  let hex = '';
+  for (let i = 0; i < bytes.length; i++) {
+    hex += bytes[i].toString(16).padStart(2, '0');
+  }
+  return hex;
+}
+
+async function verifyPin(profile, pin) {
+  if (!profile || !profile.pinHash) return true;  // sin PIN, siempre acepta
+  if (!isCryptoSubtleAvailable()) return false;   // no podemos verificar, denegamos
+  const h = await hashPin(pin);
+  return h === profile.pinHash;
 }
 
 function saveGame(record) {
@@ -4435,13 +4782,15 @@ function saveGame(record) {
   }));
 }
 
-function getAllGames() {
+function getAllGames(profileId) {
+  // Si profileId no se pasa, usa el perfil activo. Si no hay activo, retorna [].
+  const targetId = (profileId !== undefined) ? profileId : (currentProfile ? currentProfile.id : null);
+  if (targetId == null) return Promise.resolve([]);
   return openDB().then(db => new Promise((resolve, reject) => {
     const tx = db.transaction([IDB_STORE], 'readonly');
     const req = tx.objectStore(IDB_STORE).getAll();
     req.onsuccess = () => {
-      const arr = req.result || [];
-      // Ordenadas por fecha DESC (más reciente primero).
+      const arr = (req.result || []).filter(g => g.profileId === targetId);
       arr.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
       resolve(arr);
     };
@@ -4536,11 +4885,24 @@ function gameToPgn(record) {
 }
 
 function buildGameRecord(result) {
+  const profileName = currentProfile ? currentProfile.name : 'Invitado';
+  // En 1p, el perfil juega de su color y la IA del opuesto. En 2p y LAN ambos son nombres genéricos.
+  let white = 'Blancas', black = 'Negras';
+  if (gameMode === 1) {
+    if (playerColor === 'white') { white = profileName; black = 'IA'; }
+    else { white = 'IA'; black = profileName; }
+  } else if (gameMode === 3) {
+    // LAN: nuestro lado usa profile, peer usa lanPeerName.
+    const peerName = lanPeerName || 'Oponente';
+    if (lanLocalColor === 'w') { white = profileName; black = peerName; }
+    else { white = peerName; black = profileName; }
+  }
   const record = {
     date: new Date().toISOString(),
     mode: gameMode === 1 ? '1p' : gameMode === 2 ? '2p' : 'lan',
-    white: 'Blancas',
-    black: 'Negras',
+    profileId: currentProfile ? currentProfile.id : null,
+    white: white,
+    black: black,
     result: result || '*',
     moves: moveHistory.map(h => ({
       san: h.notation,
@@ -4561,6 +4923,10 @@ function saveCurrentGame(result) {
   // No guarda partidas vacías.
   if (!moveHistory || moveHistory.length === 0) {
     showToast('Nada que guardar — la partida está vacía');
+    return Promise.resolve(null);
+  }
+  // Sin perfil activo (overlay todavía visible o sesión cerrada) → no guarda.
+  if (!currentProfile) {
     return Promise.resolve(null);
   }
   const record = buildGameRecord(result);
@@ -4759,6 +5125,298 @@ function exportCurrentGamePGN() {
   }
   const record = buildGameRecord('*');
   triggerPgnDownload(record.pgn, pgnFilenameFor(record));
+}
+
+// ===================== PERFILES (sesión local) =====================
+// El usuario elige o crea un perfil al cargar la app. El perfil activo se
+// guarda en localStorage por id; los games quedan filtrados por profileId.
+// PIN opcional (SHA-256 vía Web Crypto en contextos seguros) con lockout de
+// 30s tras 3 intentos fallidos.
+
+const PROFILE_LS_KEY = 'chess_current_profile_id';
+const PIN_MAX_ATTEMPTS = 3;
+const PIN_LOCKOUT_MS = 30000;
+
+let _pendingPinProfile = null;  // perfil al que estamos por entrar (PIN view)
+let _pendingDeleteProfileId = null;
+
+function profileShowOverlay() {
+  const el = document.getElementById('profile-overlay');
+  if (el) el.style.display = 'flex';
+}
+function profileHideOverlay() {
+  const el = document.getElementById('profile-overlay');
+  if (el) el.style.display = 'none';
+}
+function profileSwitchView(view) {
+  ['profile-pick-view','profile-create-view','profile-pin-view'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = (id === view) ? '' : 'none';
+  });
+}
+function profileShowPick() {
+  profileSwitchView('profile-pick-view');
+  profileListRender();
+}
+function profileShowCreate() {
+  profileSwitchView('profile-create-view');
+  document.getElementById('profile-create-name').value = '';
+  document.getElementById('profile-create-pin').value = '';
+  profileSetStatus('profile-create-status', '', false);
+  setTimeout(() => {
+    const el = document.getElementById('profile-create-name');
+    if (el) el.focus();
+  }, 50);
+}
+function profileShowPin(profile) {
+  _pendingPinProfile = profile;
+  profileSwitchView('profile-pin-view');
+  document.getElementById('profile-pin-greeting').textContent = 'Hola, ' + profile.name;
+  document.getElementById('profile-pin-input').value = '';
+  profileSetStatus('profile-pin-status', '', false);
+  setTimeout(() => {
+    const el = document.getElementById('profile-pin-input');
+    if (el) el.focus();
+  }, 50);
+}
+function profileSetStatus(id, text, isError) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = text || '';
+  el.classList.toggle('profile-err', !!isError);
+}
+
+function profileListRender() {
+  const container = document.getElementById('profile-list');
+  if (!container) return;
+  container.innerHTML = '<div class="profile-status">Cargando…</div>';
+  listProfiles().then(profiles => {
+    if (!profiles.length) {
+      // No hay perfiles → ir directo a crear.
+      profileShowCreate();
+      return;
+    }
+    container.innerHTML = profiles.map(p => {
+      const esc = s => String(s).replace(/[&<>"']/g,
+        c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+      const pinMark = p.pinHash ? '<span class="profile-item-pin" title="Protegido con PIN">🔒</span>' : '';
+      const guest = p.isGuest ? ' · invitado' : '';
+      return '<div class="profile-item" onclick="profileSelectByClick(' + p.id + ')">'
+        + '<span class="profile-item-icon">👤</span>'
+        + '<div class="profile-item-info">'
+        + '<div class="profile-item-name">' + esc(p.name) + '</div>'
+        + '<div class="profile-item-meta">creado ' + (p.createdAt ? p.createdAt.slice(0, 10) : '—') + guest + '</div>'
+        + '</div>' + pinMark + '</div>';
+    }).join('');
+  }).catch(err => {
+    console.error('Error listando perfiles:', err);
+    container.innerHTML = '<div class="profile-status profile-err">No se pudo cargar la lista</div>';
+  });
+}
+
+function profileSelectByClick(id) {
+  getProfile(id).then(p => {
+    if (!p) { profileSetStatus('profile-pin-status', 'Perfil no encontrado', true); return; }
+    if (p.pinHash) profileShowPin(p);
+    else profileSetCurrent(p);
+  });
+}
+
+async function profileCreateSubmit() {
+  const name = (document.getElementById('profile-create-name').value || '').trim();
+  const pin = (document.getElementById('profile-create-pin').value || '').trim();
+  profileSetStatus('profile-create-status', '', false);
+  if (!name) { profileSetStatus('profile-create-status', 'El nombre es obligatorio', true); return; }
+  if (pin && !/^[0-9]{4}$/.test(pin)) {
+    profileSetStatus('profile-create-status', 'El PIN debe ser de 4 dígitos numéricos', true);
+    return;
+  }
+  let pinHash = null;
+  if (pin) {
+    if (!isCryptoSubtleAvailable()) {
+      profileSetStatus('profile-create-status', 'PIN no disponible en este contexto (usá HTTPS o localhost). Creá el perfil sin PIN.', true);
+      return;
+    }
+    try { pinHash = await hashPin(pin); }
+    catch (e) { profileSetStatus('profile-create-status', 'Error generando hash del PIN', true); return; }
+  }
+  try {
+    const id = await createProfile(name, pinHash);
+    const profile = await getProfile(id);
+    profileSetCurrent(profile);
+  } catch (err) {
+    profileSetStatus('profile-create-status', err.message || 'Error creando perfil', true);
+  }
+}
+
+async function profilePinSubmit() {
+  if (!_pendingPinProfile) { profileShowPick(); return; }
+  const pin = (document.getElementById('profile-pin-input').value || '').trim();
+  const p = _pendingPinProfile;
+  const attempts = _pinAttempts[p.id] || { count: 0, lockUntilMs: 0 };
+  const now = Date.now();
+  if (attempts.lockUntilMs > now) {
+    const sec = Math.ceil((attempts.lockUntilMs - now) / 1000);
+    profileSetStatus('profile-pin-status', 'Demasiados intentos. Esperá ' + sec + 's.', true);
+    return;
+  }
+  if (!/^[0-9]{4}$/.test(pin)) {
+    profileSetStatus('profile-pin-status', 'El PIN debe ser de 4 dígitos', true);
+    return;
+  }
+  let ok = false;
+  try { ok = await verifyPin(p, pin); } catch (_) { ok = false; }
+  if (!ok) {
+    attempts.count = (attempts.count || 0) + 1;
+    if (attempts.count >= PIN_MAX_ATTEMPTS) {
+      attempts.lockUntilMs = now + PIN_LOCKOUT_MS;
+      attempts.count = 0;
+      profileSetStatus('profile-pin-status', 'PIN incorrecto. Bloqueado por 30s.', true);
+    } else {
+      const left = PIN_MAX_ATTEMPTS - attempts.count;
+      profileSetStatus('profile-pin-status', 'PIN incorrecto. ' + left + ' intento(s) restante(s).', true);
+    }
+    _pinAttempts[p.id] = attempts;
+    return;
+  }
+  _pinAttempts[p.id] = { count: 0, lockUntilMs: 0 };
+  profileSetCurrent(p);
+}
+
+function profileSetCurrent(profile) {
+  currentProfile = profile;
+  try { localStorage.setItem(PROFILE_LS_KEY, String(profile.id)); } catch (_) {}
+  profileHideOverlay();
+  profileUpdateButtonLabel();
+  // Empezar partida nueva con el perfil cargado.
+  if (typeof newGame === 'function') newGame();
+}
+
+function profileUpdateButtonLabel() {
+  const label = document.getElementById('btn-profile-label');
+  if (label) label.textContent = '👤 ' + (currentProfile ? currentProfile.name : '');
+}
+
+function profileSignOut() {
+  currentProfile = null;
+  try { localStorage.removeItem(PROFILE_LS_KEY); } catch (_) {}
+  profileUpdateButtonLabel();
+  profileShowOverlay();
+  profileShowPick();
+}
+
+function profileRestore() {
+  let id = null;
+  try { id = parseInt(localStorage.getItem(PROFILE_LS_KEY) || '', 10); } catch (_) {}
+  if (!id || isNaN(id)) {
+    profileShowOverlay();
+    profileShowPick();
+    return Promise.resolve(null);
+  }
+  return getProfile(id).then(p => {
+    if (!p) { profileShowOverlay(); profileShowPick(); return null; }
+    if (p.pinHash) {
+      // Sesión expira: requiere PIN en cada arranque.
+      profileShowOverlay();
+      profileShowPin(p);
+      return null;
+    }
+    currentProfile = p;
+    profileUpdateButtonLabel();
+    return p;
+  }).catch(() => { profileShowOverlay(); profileShowPick(); return null; });
+}
+
+// ----- Menú del perfil activo -----
+
+function openProfileMenu() {
+  if (!currentProfile) { profileShowOverlay(); profileShowPick(); return; }
+  document.getElementById('profile-menu-name').textContent = currentProfile.name;
+  document.getElementById('profile-menu-modal').classList.add('open');
+}
+function closeProfileMenu(e) {
+  if (e.target === document.getElementById('profile-menu-modal')) closeProfileMenuBtn();
+}
+function closeProfileMenuBtn() {
+  document.getElementById('profile-menu-modal').classList.remove('open');
+}
+function profileMenuSwitch() {
+  closeProfileMenuBtn();
+  profileSignOut();
+}
+function profileMenuEdit() {
+  closeProfileMenuBtn();
+  if (!currentProfile) return;
+  document.getElementById('profile-edit-name').value = currentProfile.name;
+  document.getElementById('profile-edit-pin').value = '';
+  profileSetStatus('profile-edit-status', '', false);
+  document.getElementById('profile-edit-modal').classList.add('open');
+}
+function closeProfileEdit(e) {
+  if (e.target === document.getElementById('profile-edit-modal')) closeProfileEditBtn();
+}
+function closeProfileEditBtn() {
+  document.getElementById('profile-edit-modal').classList.remove('open');
+}
+async function profileEditSubmit() {
+  if (!currentProfile) { closeProfileEditBtn(); return; }
+  const name = (document.getElementById('profile-edit-name').value || '').trim();
+  const pin = (document.getElementById('profile-edit-pin').value || '').trim();
+  if (!name) { profileSetStatus('profile-edit-status', 'El nombre es obligatorio', true); return; }
+  if (pin && !/^[0-9]{4}$/.test(pin)) {
+    profileSetStatus('profile-edit-status', 'El PIN debe ser 4 dígitos numéricos o vacío', true);
+    return;
+  }
+  const fields = { name };
+  if (pin) {
+    if (!isCryptoSubtleAvailable()) {
+      profileSetStatus('profile-edit-status', 'PIN no disponible en este contexto', true); return;
+    }
+    try { fields.pinHash = await hashPin(pin); }
+    catch (_) { profileSetStatus('profile-edit-status', 'Error generando hash', true); return; }
+  } else {
+    // PIN vacío explícito → quitar el PIN.
+    fields.pinHash = null;
+  }
+  try {
+    const updated = await updateProfile(currentProfile.id, fields);
+    currentProfile = updated;
+    profileUpdateButtonLabel();
+    closeProfileEditBtn();
+    if (typeof showToast === 'function') showToast('Perfil actualizado');
+  } catch (err) {
+    profileSetStatus('profile-edit-status', err.message || 'Error guardando', true);
+  }
+}
+
+function profileMenuDelete() {
+  closeProfileMenuBtn();
+  if (!currentProfile) return;
+  _pendingDeleteProfileId = currentProfile.id;
+  // Contar partidas del perfil para mostrar al usuario.
+  getAllGames(currentProfile.id).then(games => {
+    document.getElementById('profile-delete-count').textContent = String(games.length);
+    document.getElementById('profile-delete-modal').classList.add('open');
+  });
+}
+function closeProfileDelete(e) {
+  if (e.target === document.getElementById('profile-delete-modal')) closeProfileDeleteBtn();
+}
+function closeProfileDeleteBtn() {
+  document.getElementById('profile-delete-modal').classList.remove('open');
+}
+function profileDeleteConfirm() {
+  const id = _pendingDeleteProfileId;
+  if (!id) { closeProfileDeleteBtn(); return; }
+  deleteProfile(id).then(() => {
+    closeProfileDeleteBtn();
+    if (typeof showToast === 'function') showToast('Perfil borrado');
+    profileSignOut();
+  }).catch(err => {
+    console.error('Error borrando perfil:', err);
+    if (typeof showToast === 'function') showToast('Error al borrar perfil');
+  });
+  _pendingDeleteProfileId = null;
 }
 
 // ===================== PGN IMPORT (parser tolerante) =====================
@@ -5536,6 +6194,22 @@ loadTimeControl();
 updateTimeControlButton();
 newGame();
 window.addEventListener('resize', () => updateEvalBar());
+
+// Restaurar perfil activo (o mostrar pantalla de selección si no hay).
+profileRestore().catch(err => {
+  console.warn('profileRestore falló:', err);
+  profileShowOverlay();
+  profileShowPick();
+});
+
+// Enter en los formularios del overlay = submit.
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  const overlay = document.getElementById('profile-overlay');
+  if (!overlay || overlay.style.display === 'none') return;
+  if (document.getElementById('profile-create-view').style.display !== 'none') profileCreateSubmit();
+  else if (document.getElementById('profile-pin-view').style.display !== 'none') profilePinSubmit();
+});
 </script>
 </body>
 </html>

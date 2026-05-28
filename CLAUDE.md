@@ -41,7 +41,8 @@ Everything lives in `index.html` in four inline sections:
 | `MULTIJUGADOR LAN (wizard)` | `openLAN`, `lanPickRole`, `lanHostStartOffer`, `lanGuestProcessOffer`, `lanHostConnect`, `lanHostRetry`, `lanSetupDC`, `lanSend`, `lanDispatch`, 7 message handlers (`lanHandleHello/Move/Resign/DrawOffer/DrawResponse/Chat/Sync`), `lanFinalizeConnection`, `lanOnConnectionLost`, `lanReconnect`, `lanSetBanner`, `lanParseUciToMove`, `lanSendMyMove` |
 | `RELOJ` | `formatClock`, `tickClock`, `startClockInterval`, `stopClockInterval`, `renderClocks`, `flagFall`, `cannotMate`, `clocksEnabled` |
 | `CONTROL DE TIEMPO (selector)` | `openTimeControl`, `applyCustomTimeControl`, `updateTimeControlButton` |
-| `PERSISTENCIA (IndexedDB)` | `openDB`, `saveGame`, `getAllGames`, `getGame`, `deleteGame`, `autoSaveGame`, `manualSaveGame`, `buildGameRecord`, `gameToPgn`, `moveToUCI`, `renderGamesTable`, `exportCurrentGamePGN`, `exportGamePGN` |
+| `PERSISTENCIA (IndexedDB)` | `openDB`, `saveGame`, `getAllGames`, `getGame`, `deleteGame`, `listProfiles`, `getProfile`, `createProfile`, `updateProfile`, `deleteProfile`, `hashPin`, `verifyPin`, `isCryptoSubtleAvailable`, `autoSaveGame`, `manualSaveGame`, `buildGameRecord`, `gameToPgn`, `moveToUCI`, `renderGamesTable`, `exportCurrentGamePGN`, `exportGamePGN` |
+| `PERFILES (sesión local)` | `profileShowOverlay`, `profileShowPick`, `profileShowCreate`, `profileShowPin`, `profileSelectByClick`, `profileCreateSubmit`, `profilePinSubmit`, `profileSetCurrent`, `profileSignOut`, `profileRestore`, `profileUpdateButtonLabel`, `openProfileMenu`, `profileMenuSwitch`, `profileMenuEdit`, `profileMenuDelete`, `profileEditSubmit`, `profileDeleteConfirm` |
 | `PGN IMPORT (parser tolerante)` | `triggerPgnImport`, `handlePgnImport`, `parsePgn`, `parsePgnHeaders`, `parsePgnMoves` |
 | `VISOR DE ESTUDIO (replay)` | `viewGame`, `exitReplay`, `replayFirst/Prev/Next/Last`, `renderReplayList`, `renderReplayChart` |
 | `SONIDOS (WebAudio)` | `ensureAudio`, `playSound` — 6 types (move/capture/check/castle/promote/gameEnd), lazy-init |
@@ -55,6 +56,7 @@ Everything lives in `index.html` in four inline sections:
 - UX state: `toastTimeout`, `displayPct` (smoothed eval bar), `dragState`, `stateStack` (undo, cap 100), `hintArrow`, `currentPieceSet`.
 - Clock: `selectedTimeControl`, `clockWhiteMs`, `clockBlackMs`, `clockActive`, `clockLastTickAt`, `clockIntervalId`.
 - LAN: `lanWizardState`, `lanPC`, `lanDC`, `lanConnected`, `lanLocalColor`, `lanPeerName`, `lanReceivingMove`, `LAN_PROTOCOL_VERSION` (const), `LAN_ICE_TIMEOUT_MS` (const).
+- Perfiles: `currentProfile` ({id, name, pinHash?, isGuest?} | null), `_pinAttempts` (per-id lockout state), `PROFILE_LS_KEY`, `PIN_MAX_ATTEMPTS`, `PIN_LOCKOUT_MS` (consts).
 - About modal: `_aboutRendered` (cache flag for the markdown parse).
 
 ## Key conventions
@@ -76,6 +78,9 @@ Everything lives in `index.html` in four inline sections:
 - **`lanReceivingMove` flag** in `executeMove` suppresses the move-send hook when applying a remote move (prevents infinite ping-pong).
 - **Modal cleanup respects `lanConnected`**: `closeLANBtn` only calls `lanCleanupConnection()` if NOT connected — protects the active LAN session when the user just closes the modal after connecting.
 - **`MEJORAS.md` is duplicated** between the on-disk file and the embedded `<script type="text/markdown">` block. Edits must be mirrored in both, or re-run the embed step (see `task_44` closure for the Python snippet).
+- **Profile session required to play.** `profileRestore()` runs at INIT; if no profile found in `localStorage.chess_current_profile_id`, a full-screen overlay forces sign-in. PIN-protected profiles re-prompt on every load (no persistent session). `saveCurrentGame` bails silently when `currentProfile == null`. `getAllGames(profileId?)` defaults to filtering by `currentProfile.id` and returns `[]` if no profile is active.
+- **IndexedDB schema v2.** Two stores: `games` (existing) and `profiles` (new). Migration v1→v2 auto-creates a profile named "Invitado" and assigns all legacy games to it. `games.profileId` index added at migration time. Bumping the schema again means adding a v3 branch in `openDB.onupgradeneeded`.
+- **PIN hashing via Web Crypto SHA-256.** `crypto.subtle.digest` requires secure context (HTTPS, localhost, `file://`). On raw `http://192.168.x.x`, `isCryptoSubtleAvailable()` returns false → PIN creation is rejected with a friendly message; PIN verification is also rejected (denies sign-in). The 3-attempts → 30s lockout state lives in-memory only (`_pinAttempts`), so it resets across page reloads.
 
 ## Development workflow
 

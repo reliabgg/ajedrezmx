@@ -93,7 +93,13 @@ El Clipboard API requiere **HTTPS o localhost**. Si abriste la app vía `http://
 
 **¿Mis partidas se guardan?**
 
-Sí, en el IndexedDB de tu navegador. Cada partida que terminás se guarda automáticamente; también podés guardar manualmente con el botón **💾 Guardar**. Para verlas: click en **📂 Partidas**. Caveat: si usás Safari en modo privado, IndexedDB se vacía al cerrar la pestaña.
+Sí, en el IndexedDB de tu navegador, asociadas a tu perfil. Cada partida que terminás se guarda automáticamente; también podés guardar manualmente con el botón **💾 Guardar**. Para verlas: click en **📂 Partidas**. Caveat: si usás Safari en modo privado, IndexedDB se vacía al cerrar la pestaña.
+
+**¿Cómo funcionan los perfiles? ¿Pueden compartir el dispositivo varias personas?**
+
+Sí. La primera vez que abrís la app, tenés que crear un perfil (solo nombre, o nombre + PIN opcional de 4 dígitos). Cada perfil tiene su propio historial de partidas. Para cambiar de perfil: click en **👤 [nombre]** en la barra de controles → "Cambiar de perfil". Los perfiles con PIN re-piden el PIN cada vez que abrís la app (no se quedan logueados). Tres PINs incorrectos seguidos = lockout de 30 segundos.
+
+**Aclaración importante**: los perfiles son **locales al navegador**. No hay servidor, no hay cuentas en la nube, no hay password recovery. Si perdés el PIN, las partidas del perfil quedan inaccesibles (técnicamente recuperables vía DevTools, pero el flujo normal no las muestra). El PIN evita que alguien casual mire tu historial, **no** es protección criptográfica fuerte.
 
 **¿Qué tan fuerte juega la IA?**
 

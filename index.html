@@ -1079,8 +1079,12 @@ body.hide-coords .rank-labels, body.hide-coords #file-labels { display: none; }
         <input type="text" id="profile-create-name" maxlength="32" autocomplete="off" placeholder="Tu nombre">
       </label>
       <label class="profile-field">
-        <span>PIN opcional (4 dígitos)</span>
-        <input type="text" id="profile-create-pin" maxlength="4" inputmode="numeric" pattern="[0-9]{4}" autocomplete="off" placeholder="Dejá vacío si no querés PIN">
+        <span>PIN de 4 dígitos (obligatorio)</span>
+        <input type="password" id="profile-create-pin" maxlength="4" inputmode="numeric" pattern="[0-9]{4}" autocomplete="off" placeholder="• • • •">
+      </label>
+      <label class="profile-field">
+        <span>Confirmá tu PIN</span>
+        <input type="password" id="profile-create-pin2" maxlength="4" inputmode="numeric" pattern="[0-9]{4}" autocomplete="off" placeholder="• • • •">
       </label>
       <div class="profile-status" id="profile-create-status"></div>
       <div class="profile-actions">
@@ -1126,8 +1130,12 @@ body.hide-coords .rank-labels, body.hide-coords #file-labels { display: none; }
       <input type="text" id="profile-edit-name" maxlength="32" autocomplete="off">
     </label>
     <label class="profile-field">
-      <span>PIN nuevo (dejá vacío para quitar)</span>
-      <input type="text" id="profile-edit-pin" maxlength="4" inputmode="numeric" pattern="[0-9]{4}" autocomplete="off" placeholder="4 dígitos o vacío">
+      <span>Nuevo PIN (dejá vacío para no cambiarlo)</span>
+      <input type="password" id="profile-edit-pin" maxlength="4" inputmode="numeric" pattern="[0-9]{4}" autocomplete="off" placeholder="• • • •">
+    </label>
+    <label class="profile-field">
+      <span>Confirmá el nuevo PIN</span>
+      <input type="password" id="profile-edit-pin2" maxlength="4" inputmode="numeric" pattern="[0-9]{4}" autocomplete="off" placeholder="• • • •">
     </label>
     <div class="profile-status" id="profile-edit-status"></div>
     <div class="profile-actions">
@@ -1581,7 +1589,7 @@ Documento de referencia para usuarios y desarrolladores. Se actualiza incrementa
 - _(Fase 9)_ Audit responsive (29 asserts): `env(safe-area-inset-*)` con `max()` fallback en body y toast (iOS notch/home-indicator); toast con `max-width: calc(100vw - 32px)` y `word-break: break-word`; LAN banner con `flex-wrap: wrap` + `max-width: min(480px, calc(100vw - 16px))`; games-table-container con `overflow: auto`; `@media 700px` compacta modal h2 / games-table cells / lan-textarea para mobile.
 - _(Fase 9)_ Audit cross-browser estructural (33 asserts): matriz de versiones mínimas (Chrome 86+, Firefox 78+, Safari 14+ / iOS 14.5+, Chrome Android 88+). Guards confirmados: `webkitAudioContext` para Safari pre-14, `navigator.clipboard` con try/catch en cada call site, `typeof RTCPeerConnection` antes de constructor, `touch-action:none` en piezas. Sin uso de APIs bleeding-edge (`:has`, `dvh`, `aspect-ratio`, `@container`, `ResizeObserver`, `eval`).
 - _(Fase 9)_ Performance audit de `renderBoard` (13 asserts): mean 0.55ms / p50 0.30ms en node con DOM mockeado. Browser estimado 3-7ms incluyendo layout+paint. Margen vs 60fps (16.67ms): >2×. Confirmado que `pointermove` NO llama `renderBoard` (drag mueve overlay con `style.left/top`). Sin optimización aplicada per Karpathy.
-- _(Post-P1)_ Perfiles locales con PIN opcional (68 asserts). IndexedDB schema bump v1→v2: nuevo store `profiles` (`{id, name, pinHash?, createdAt, isGuest?}`) + índice `profileId` en `games`. Migración auto-crea perfil "Invitado" y asigna las games legacy. PIN vía SHA-256 (`crypto.subtle.digest`) en contextos seguros con lockout de 30s tras 3 intentos fallidos. Pantalla full-screen al cargar bloquea el juego hasta elegir o crear perfil. Botón `👤 nombre` en barra de controles abre menú con editar/cambiar perfil/borrar. `buildGameRecord` asigna `profileId` y usa nombre del perfil en `white`/`black` para 1p y LAN. `lanOnDCOpen` envía el nombre del perfil en el `hello`. PIN-protected re-prompt en cada arranque (sin sesión persistente).
+- _(Post-P1)_ Perfiles locales (81 asserts). IndexedDB schema bump v1→v2: nuevo almacén `profiles` (`{id, name, pinHash, createdAt, isGuest?}`) + índice `profileId` en `games`. Migración auto-crea perfil "Invitado" y asigna las partidas legacy. **PIN obligatorio de 4 dígitos en la creación** (con campo de confirmación para evitar tipearlo mal), hasheado con SHA-256 vía `crypto.subtle.digest`. Bloqueo de 30s tras 3 intentos fallidos (estado en memoria). Pantalla a pantalla completa al cargar bloquea el juego hasta elegir o crear perfil; el PIN se vuelve a pedir en cada arranque (sin sesión persistente). Botón `👤 nombre` en la barra de controles abre menú con editar/cambiar perfil/borrar. `buildGameRecord` asigna `profileId` y usa nombre del perfil en `white`/`black` para 1p y LAN. `lanOnDCOpen` envía el nombre del perfil en el `hello`. La creación rechaza con mensaje explicativo si el contexto no es seguro (HTTP sobre IP de LAN cruda → no hay Web Crypto disponible); funciona con HTTPS, `localhost`, o `file://`.
 
 ---
 
@@ -5162,7 +5170,16 @@ function profileShowCreate() {
   profileSwitchView('profile-create-view');
   document.getElementById('profile-create-name').value = '';
   document.getElementById('profile-create-pin').value = '';
-  profileSetStatus('profile-create-status', '', false);
+  document.getElementById('profile-create-pin2').value = '';
+  // Si el contexto no soporta Web Crypto (HTTP de LAN cruda), avisarle al usuario
+  // antes de que escriba nada: el PIN es obligatorio y no se puede hashear acá.
+  if (!isCryptoSubtleAvailable()) {
+    profileSetStatus('profile-create-status',
+      'Este navegador no permite cifrar el PIN en esta dirección. Abrí la app desde HTTPS o desde localhost para crear un perfil.',
+      true);
+  } else {
+    profileSetStatus('profile-create-status', '', false);
+  }
   setTimeout(() => {
     const el = document.getElementById('profile-create-name');
     if (el) el.focus();
@@ -5225,21 +5242,27 @@ function profileSelectByClick(id) {
 async function profileCreateSubmit() {
   const name = (document.getElementById('profile-create-name').value || '').trim();
   const pin = (document.getElementById('profile-create-pin').value || '').trim();
+  const pin2 = (document.getElementById('profile-create-pin2').value || '').trim();
   profileSetStatus('profile-create-status', '', false);
   if (!name) { profileSetStatus('profile-create-status', 'El nombre es obligatorio', true); return; }
-  if (pin && !/^[0-9]{4}$/.test(pin)) {
+  if (!isCryptoSubtleAvailable()) {
+    profileSetStatus('profile-create-status',
+      'No se puede crear un perfil sin PIN cifrado. Abrí la app desde HTTPS o desde localhost.',
+      true);
+    return;
+  }
+  if (!pin) { profileSetStatus('profile-create-status', 'El PIN es obligatorio (4 dígitos)', true); return; }
+  if (!/^[0-9]{4}$/.test(pin)) {
     profileSetStatus('profile-create-status', 'El PIN debe ser de 4 dígitos numéricos', true);
     return;
   }
-  let pinHash = null;
-  if (pin) {
-    if (!isCryptoSubtleAvailable()) {
-      profileSetStatus('profile-create-status', 'PIN no disponible en este contexto (usá HTTPS o localhost). Creá el perfil sin PIN.', true);
-      return;
-    }
-    try { pinHash = await hashPin(pin); }
-    catch (e) { profileSetStatus('profile-create-status', 'Error generando hash del PIN', true); return; }
+  if (pin !== pin2) {
+    profileSetStatus('profile-create-status', 'Los dos PIN no coinciden', true);
+    return;
   }
+  let pinHash;
+  try { pinHash = await hashPin(pin); }
+  catch (e) { profileSetStatus('profile-create-status', 'Error generando hash del PIN', true); return; }
   try {
     const id = await createProfile(name, pinHash);
     const profile = await getProfile(id);
@@ -5349,6 +5372,7 @@ function profileMenuEdit() {
   if (!currentProfile) return;
   document.getElementById('profile-edit-name').value = currentProfile.name;
   document.getElementById('profile-edit-pin').value = '';
+  document.getElementById('profile-edit-pin2').value = '';
   profileSetStatus('profile-edit-status', '', false);
   document.getElementById('profile-edit-modal').classList.add('open');
 }
@@ -5362,21 +5386,28 @@ async function profileEditSubmit() {
   if (!currentProfile) { closeProfileEditBtn(); return; }
   const name = (document.getElementById('profile-edit-name').value || '').trim();
   const pin = (document.getElementById('profile-edit-pin').value || '').trim();
+  const pin2 = (document.getElementById('profile-edit-pin2').value || '').trim();
   if (!name) { profileSetStatus('profile-edit-status', 'El nombre es obligatorio', true); return; }
-  if (pin && !/^[0-9]{4}$/.test(pin)) {
-    profileSetStatus('profile-edit-status', 'El PIN debe ser 4 dígitos numéricos o vacío', true);
-    return;
-  }
   const fields = { name };
-  if (pin) {
+  // El PIN es obligatorio para todos los perfiles. En la edición:
+  //   - Si ambos campos están vacíos: no se toca el PIN actual.
+  //   - Si están llenos: validar y reemplazar.
+  //   - No se permite quitarlo (vaciar uno solo es un error o pedido inválido).
+  if (pin || pin2) {
+    if (!/^[0-9]{4}$/.test(pin)) {
+      profileSetStatus('profile-edit-status', 'El PIN nuevo debe ser de 4 dígitos numéricos', true);
+      return;
+    }
+    if (pin !== pin2) {
+      profileSetStatus('profile-edit-status', 'Los dos PIN nuevos no coinciden', true);
+      return;
+    }
     if (!isCryptoSubtleAvailable()) {
-      profileSetStatus('profile-edit-status', 'PIN no disponible en este contexto', true); return;
+      profileSetStatus('profile-edit-status', 'No se puede cambiar el PIN en esta dirección (usá HTTPS o localhost)', true);
+      return;
     }
     try { fields.pinHash = await hashPin(pin); }
     catch (_) { profileSetStatus('profile-edit-status', 'Error generando hash', true); return; }
-  } else {
-    // PIN vacío explícito → quitar el PIN.
-    fields.pinHash = null;
   }
   try {
     const updated = await updateProfile(currentProfile.id, fields);

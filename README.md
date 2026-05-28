@@ -97,9 +97,13 @@ Sí, en el IndexedDB de tu navegador, asociadas a tu perfil. Cada partida que te
 
 **¿Cómo funcionan los perfiles? ¿Pueden compartir el dispositivo varias personas?**
 
-Sí. La primera vez que abrís la app, tenés que crear un perfil (solo nombre, o nombre + PIN opcional de 4 dígitos). Cada perfil tiene su propio historial de partidas. Para cambiar de perfil: click en **👤 [nombre]** en la barra de controles → "Cambiar de perfil". Los perfiles con PIN re-piden el PIN cada vez que abrís la app (no se quedan logueados). Tres PINs incorrectos seguidos = lockout de 30 segundos.
+Sí. La primera vez que abrís la app, tenés que crear un perfil con nombre y **PIN obligatorio de 4 dígitos** (te pide confirmarlo dos veces para evitar tipearlo mal). Cada perfil tiene su propio historial de partidas. Para cambiar de perfil: clic en **👤 [nombre]** en la barra de controles → "Cambiar de perfil". El PIN se vuelve a pedir cada vez que abrís la app (no se queda con sesión iniciada). Tres PIN incorrectos seguidos = bloqueo de 30 segundos.
 
-**Aclaración importante**: los perfiles son **locales al navegador**. No hay servidor, no hay cuentas en la nube, no hay password recovery. Si perdés el PIN, las partidas del perfil quedan inaccesibles (técnicamente recuperables vía DevTools, pero el flujo normal no las muestra). El PIN evita que alguien casual mire tu historial, **no** es protección criptográfica fuerte.
+**Aclaración importante**: los perfiles son **locales al navegador**. No hay servidor, no hay cuentas en la nube, no hay recuperación de contraseña. Si perdés el PIN, las partidas del perfil quedan inaccesibles desde la interfaz normal (técnicamente recuperables vía DevTools, pero el flujo de la app no las muestra). El PIN evita que alguien casual mire tu historial; **no** es protección criptográfica de nivel militar — el hash se guarda en tu propio navegador y quien tenga acceso al dispositivo lo puede inspeccionar.
+
+**¿Por qué la app no me deja crear un perfil en `http://192.168.x.x`?**
+
+El PIN se cifra con `crypto.subtle.digest` (SHA-256), que el navegador solo expone en contextos seguros: HTTPS, `localhost`, o `file://`. Sobre una IP de LAN cruda (sin HTTPS) la API no está disponible y la app rechaza la creación. Soluciones: (a) abrí la app desde **https://reliabgg.github.io/ajedrezmx/**, (b) en la PC anfitriona usá `http://localhost:8000`, o (c) abrí el `index.html` con doble clic (`file://`).
 
 **¿Qué tan fuerte juega la IA?**
 

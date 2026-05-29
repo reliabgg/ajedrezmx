@@ -1273,8 +1273,18 @@ body.hide-coords .rank-labels, body.hide-coords #file-labels { display: none; }
     <h2>📡 Multijugador LAN</h2>
 
     <div id="lan-role-pick" class="lan-step active">
-      <p>¿Quién eres en esta partida?</p>
-      <div class="lan-role-grid">
+      <p>Conéctate con tu rival en la misma red.</p>
+      <div id="lan-auto-roles" class="lan-role-grid" style="display:none;">
+        <button class="btn lan-role-btn" onclick="lanAutoHostStart()">
+          <span class="lan-role-icon">🖥</span>
+          <span>Crear sala</span>
+        </button>
+        <button class="btn lan-role-btn" onclick="lanShowAutoJoin()">
+          <span class="lan-role-icon">📱</span>
+          <span>Unirse a sala</span>
+        </button>
+      </div>
+      <div id="lan-manual-roles" class="lan-role-grid">
         <button class="btn lan-role-btn" onclick="lanPickRole('host')">
           <span class="lan-role-icon">🖥</span>
           <span>Soy el anfitrión</span>
@@ -1283,6 +1293,33 @@ body.hide-coords .rank-labels, body.hide-coords #file-labels { display: none; }
           <span class="lan-role-icon">📱</span>
           <span>Soy el invitado</span>
         </button>
+      </div>
+      <div id="lan-mode-note" class="lan-status" style="font-size:0.8rem;opacity:0.85;"></div>
+      <button class="btn" onclick="closeLANBtn()">Cancelar</button>
+    </div>
+
+    <!-- Conexión automática: anfitrión -->
+    <div id="lan-auto-host" class="lan-step">
+      <div class="lan-step-progress">Anfitrión · Sala automática</div>
+      <p>Comparte este código con tu rival (de viva voz o por mensaje):</p>
+      <div id="lan-room-code" style="font-size:2.4rem;letter-spacing:8px;text-align:center;font-weight:bold;color:var(--accent);">----</div>
+      <p style="font-size:0.85rem;opacity:0.85;">Tu rival abre esta misma página en su dispositivo, elige «Unirse a sala» y escribe el código.</p>
+      <div class="lan-status" id="lan-auto-host-status">Generando sala…</div>
+      <div class="lan-step-buttons">
+        <button class="btn" onclick="lanGoToRolePick()">← Atrás</button>
+        <button class="btn" onclick="closeLANBtn()">Cancelar</button>
+      </div>
+    </div>
+
+    <!-- Conexión automática: invitado -->
+    <div id="lan-auto-join" class="lan-step">
+      <div class="lan-step-progress">Invitado · Unirse a sala</div>
+      <p>Escribe el código de sala que te dio el anfitrión:</p>
+      <input id="lan-join-code" inputmode="numeric" maxlength="4" placeholder="0000" style="font-size:1.8rem;letter-spacing:8px;text-align:center;width:170px;margin:0 auto;background:var(--bg);color:var(--fg);border:1px solid var(--panel-border);border-radius:6px;padding:8px;">
+      <div class="lan-status" id="lan-auto-join-status"></div>
+      <div class="lan-step-buttons">
+        <button class="btn" onclick="lanGoToRolePick()">← Atrás</button>
+        <button class="btn" id="lan-join-btn" onclick="lanAutoJoin()">✓ Conectar</button>
       </div>
       <button class="btn" onclick="closeLANBtn()">Cancelar</button>
     </div>
@@ -1601,9 +1638,10 @@ Documento de referencia para usuarios y desarrolladores. Se actualiza incrementa
 - _(Fase 9)_ Audit responsive (29 asserts): `env(safe-area-inset-*)` con `max()` fallback en body y toast (iOS notch/home-indicator); toast con `max-width: calc(100vw - 32px)` y `word-break: break-word`; LAN banner con `flex-wrap: wrap` + `max-width: min(480px, calc(100vw - 16px))`; games-table-container con `overflow: auto`; `@media 700px` compacta modal h2 / games-table cells / lan-textarea para mobile.
 - _(Fase 9)_ Audit cross-browser estructural (33 asserts): matriz de versiones mínimas (Chrome 86+, Firefox 78+, Safari 14+ / iOS 14.5+, Chrome Android 88+). Guards confirmados: `webkitAudioContext` para Safari pre-14, `navigator.clipboard` con try/catch en cada call site, `typeof RTCPeerConnection` antes de constructor, `touch-action:none` en piezas. Sin uso de APIs bleeding-edge (`:has`, `dvh`, `aspect-ratio`, `@container`, `ResizeObserver`, `eval`).
 - _(Fase 9)_ Performance audit de `renderBoard` (13 asserts): mean 0.55ms / p50 0.30ms en node con DOM mockeado. Browser estimado 3-7ms incluyendo layout+paint. Margen vs 60fps (16.67ms): >2×. Confirmado que `pointermove` NO llama `renderBoard` (drag mueve overlay con `style.left/top`). Sin optimización aplicada per Karpathy.
-- _(Post-P1)_ Perfiles locales (81 asserts). IndexedDB schema bump v1→v2: nuevo almacén `profiles` (`{id, name, pinHash, createdAt, isGuest?}`) + índice `profileId` en `games`. Migración auto-crea perfil "Invitado" y asigna las partidas legacy. **PIN obligatorio de 4 dígitos en la creación** (con campo de confirmación para evitar tipearlo mal), hasheado con SHA-256 vía `crypto.subtle.digest`. Bloqueo de 30s tras 3 intentos fallidos (estado en memoria). Pantalla a pantalla completa al cargar bloquea el juego hasta elegir o crear perfil; el PIN se vuelve a pedir en cada arranque (sin sesión persistente). Botón `👤 nombre` en la barra de controles abre menú con editar/cambiar perfil/borrar. `buildGameRecord` asigna `profileId` y usa nombre del perfil en `white`/`black` para 1p y LAN. `lanOnDCOpen` envía el nombre del perfil en el `hello`. La creación rechaza con mensaje explicativo si el contexto no es seguro (HTTP sobre IP de LAN cruda → no hay Web Crypto disponible); funciona con HTTPS, `localhost`, o `file://`.
+- _(Post-P1)_ Perfiles locales (81 asserts). IndexedDB schema bump v1→v2: nuevo almacén `profiles` (`{id, name, pinHash, createdAt, isGuest?}`) + índice `profileId` en `games`. Migración auto-crea perfil "Invitado" y asigna las partidas legacy. **PIN obligatorio de 4 dígitos en la creación** (con campo de confirmación para evitar tipearlo mal), hasheado con SHA-256 vía `crypto.subtle.digest`. Bloqueo de 30s tras 3 intentos fallidos (estado en memoria). Pantalla a pantalla completa al cargar bloquea el juego hasta elegir o crear perfil; el PIN se vuelve a pedir en cada arranque (sin sesión persistente). Botón `👤 nombre` en la barra de controles abre menú con editar/cambiar perfil/borrar. `buildGameRecord` asigna `profileId` y usa nombre del perfil en `white`/`black` para 1p y LAN. `lanOnDCOpen` envía el nombre del perfil en el `hello`. El PIN se hashea con SHA-256: en contexto seguro vía `crypto.subtle` (Web Crypto), y sobre HTTP por IP de LAN cruda —donde `crypto.subtle` no existe, p. ej. el celular en `http://192.168.x.x`— cae a un **SHA-256 en JS puro** que produce un hash idéntico (`_sha256HexBytes`, verificado contra el estándar). Así la creación y verificación del PIN funcionan en cualquier contexto (HTTPS, `localhost`, `file://` o HTTP por IP).
 - _(Post-P1)_ Colección "♛ Partidas Célebres" (Clásicas): 123 partidas inmortales de la historia (1820–2006: el Inmortal de Anderssen, la Siempreviva, la Opera Game de Morphy, la Partida del Siglo de Fischer, el Inmortal de Kasparov, Rotlewi–Rubinstein, Steinitz–von Bardeleben, etc.). Embebidas como movetext SAN compacto (~44 KB) en `CLASSIC_GAMES` y expandidas con `pgnToGameRecord` al abrir cada una (parseo perezoso). Las partidas fueron verificadas jugada por jugada contra el motor (round-trip 123/123 tras retirar una transcripción duplicada de la Inmortal). Botón "♛ Clásicas" abre un modal con buscador (por jugador/evento/año) y tabla; "👁 Ver" abre la partida en el visor de estudio vía `viewGameRecord`. Colección de **solo lectura**: no se guardan en IndexedDB ni dependen del perfil activo. Movimientos tomados de colecciones públicas de _immortal games_ (las jugadas de ajedrez son hechos, sin copyright).
 - _(Post-P1)_ Narración dramática de Clásicas (las 123 partidas con guión completo). Botón "🔊 Narrar" en el visor de estudio (solo aparece si la partida tiene guión). Usa el lector de voz integrado del navegador (Web Speech API / `speechSynthesis`) — **100% offline, cero dependencias y cero archivos de audio**: el guión es texto embebido en `CLASSIC_NARRATION` (con clave `narrationKey`, un hash de las jugadas) y la voz la pone el sistema del usuario. `pickSpanishVoice()` prefiere una voz **local** en español (es-MX > es-US/es-419 > es-\*) para garantizar que no haya tráfico de red. La reproducción narrada arranca en la posición inicial y avanza **jugada por jugada**, una pieza a la vez con un deslizamiento suave (clon flotante que reutiliza el estilo `.drag-overlay` del arrastre); se detiene a narrar en los plies con guión —las piezas quedan inmóviles mientras habla la voz— y reanuda al terminar, hasta el final de la partida (`advanceNarration` + `narrateAtPly` + `animateReplayMove`). El ritmo de las jugadas en silencio se mantiene ágil (~490 ms/jugada) y los guiones intercalan líneas puente en los huecos largos, de modo que ningún silencio entre narraciones supere ~3.5 s. Ritmo (`rate`) más lento en los momentos clímax (sacrificios de alfil y de dama). Si el usuario navega manualmente, la narración se detiene sola (guard en `replayGoto` con la bandera `narrationDriving`); también se detiene al salir del visor. Los guiones se escriben por lotes para toda la colección (anclados a las jugadas reales, con `rate` más lento en los clímax) y se van quedando listos para una voz premium futura. La clave `narrationKey` es un hash de las jugadas (evita colisiones entre partidas con mismos jugadores/año). En la lista, las partidas con guión muestran 🔊.
+- _(Post-P1)_ Conexión LAN automática (sin copiar/pegar). Nuevo `chess-lan-server.py` (solo biblioteca estándar de Python): sirve los archivos **y** ofrece señalización WebRTC por HTTP (`/lan/ping`, `/lan/offer`, `/lan/answer`, con salas que expiran a los 10 min). Al abrir 📡 LAN, el modal hace `GET /lan/ping`: si hay servidor de emparejamiento, muestra "Crear sala" / "Unirse a sala" (el anfitrión obtiene un código de 4 dígitos; el invitado lo escribe y la conexión se establece sola); si no, cae al **modo manual** copiar/pegar de siempre (fallback para `file://` o `http.server`). Reutiliza toda la maquinaria WebRTC existente (`lanCreateOffer`/`lanCreateAnswer` + sondeo `lanPollForAnswer`); las jugadas siguen viajando **cifradas de extremo a extremo** por el canal WebRTC (DTLS) — el servidor solo ve el SDP del saludo. Seguridad: el servidor se ata a la LAN (no exponer a internet) y el código de sala evita emparejamientos accidentales. Esto resuelve además que sobre `http://IP-LAN` el portapapeles y la cámara estén bloqueados (contexto inseguro), que era lo que hacía penoso el copy-paste manual.
 
 ---
 
@@ -1783,10 +1821,22 @@ Servir vía HTTP habilita el Clipboard API completo (necesario para los botones 
 
 ### Prerequisitos
 
-- Dos dispositivos conectados a la **misma red WiFi**.
-- Ambos usando el mismo `index.html` (idealmente servido por HTTP estático — ver sección 4).
+- Dos dispositivos conectados a la **misma red WiFi/LAN**.
 - Navegador moderno (Chrome 86+ / Firefox 78+ / Safari 14+ / Edge 86+ / Chrome Android 88+ / Safari iOS 14.5+).
-- Un canal cualquiera para pasar el SDP entre dispositivos: chat, mensaje, AirDrop, o incluso una nota compartida. **No requiere internet** — funciona entre dos PCs en la misma WiFi aislada.
+- **No requiere internet** — funciona entre dos dispositivos en la misma red aislada.
+
+### Modo recomendado: conexión automática (con `chess-lan-server.py`)
+
+1. En la máquina anfitriona, corre: `python3 chess-lan-server.py` (escucha en `0.0.0.0:8000` — toda la LAN). La consola muestra la IP a compartir, p. ej. `http://192.168.1.50:8000`.
+2. El anfitrión abre `http://localhost:8000`, va a **📡 LAN** → **Crear sala**. Aparece un **código de 4 dígitos**.
+3. El invitado abre **`http://IP-DEL-ANFITRION:8000`** en su navegador → **📡 LAN** → **Unirse a sala**, escribe el código y **✓ Conectar**.
+4. La conexión se establece sola (sin copiar/pegar). Las jugadas viajan cifradas de extremo a extremo por WebRTC.
+
+> Seguridad: el servidor se ata a la red local; no lo expongas a internet. El código de sala evita emparejamientos accidentales.
+
+### Modo manual (fallback, sin servidor de emparejamiento)
+
+Si abres el `index.html` como `file://` o con un servidor sin señalización, el modal LAN muestra el flujo manual de copiar/pegar el SDP. Pasos:
 
 ### Lado anfitrión
 
@@ -3875,10 +3925,20 @@ let lanReceivingMove = false;  // true while applying a remote move (suppress re
 const LAN_PROTOCOL_VERSION = 1;
 const LAN_ICE_TIMEOUT_MS = 3000;
 
+let lanSignalingAvailable = false;  // ¿hay servidor de emparejamiento (chess-lan-server.py)?
+let lanRoom = null;                 // código de sala en uso
+let lanPollStop = null;             // función para detener el sondeo de respuesta
+let lanFreshStart = false;          // true cuando el usuario inicia un emparejamiento NUEVO
+                                    // (Crear/Unirse/elegir rol) → al conectar se reinicia la
+                                    // partida desde la posición inicial en ambos lados.
+
 function openLAN() {
   lanWizardState = { role: null, step: 0 };
   showLANStep(null, 0);
   document.getElementById('lan-modal').classList.add('open');
+  // Detecta el servidor de emparejamiento para ofrecer conexión automática;
+  // si no responde, el modal cae al modo manual (copiar/pegar).
+  lanPingSignaling().then(ok => { lanSignalingAvailable = ok; lanUpdateRolePickUI(); });
 }
 function closeLAN(e) {
   if (e.target === document.getElementById('lan-modal')) closeLANBtn();
@@ -3890,6 +3950,7 @@ function closeLANBtn() {
 }
 function lanPickRole(role) {
   lanCleanupConnection();
+  lanFreshStart = true;
   lanWizardState = { role: role, step: 1 };
   showLANStep(role, 1);
   if (role === 'host') lanHostStartOffer();
@@ -3906,6 +3967,7 @@ function lanGoToRolePick() {
   lanCleanupConnection();
   lanWizardState = { role: null, step: 0 };
   showLANStep(null, 0);
+  lanUpdateRolePickUI();
 }
 function showLANStep(role, step) {
   const steps = document.querySelectorAll('#lan-modal .lan-step');
@@ -3926,6 +3988,7 @@ async function lanPasteText(id) {
 }
 
 function lanCleanupConnection() {
+  if (lanPollStop) { try { lanPollStop(); } catch (_) {} lanPollStop = null; }
   if (lanDC) { try { lanDC.close(); } catch (_) {} lanDC = null; }
   if (lanPC) { try { lanPC.close(); } catch (_) {} lanPC = null; }
   lanConnected = false;
@@ -3967,7 +4030,7 @@ async function lanHostStartOffer() {
     pc.oniceconnectionstatechange = function () {
       if (pc !== lanPC) return;
       const s = pc.iceConnectionState;
-      if (lanConnected && (s === 'disconnected' || s === 'failed' || s === 'closed')) {
+      if (lanConnected && (s === 'failed' || s === 'closed')) {
         lanOnConnectionLost();
       }
     };
@@ -4052,7 +4115,7 @@ async function lanHostConnect() {
 function lanOnHostConnState(state) {
   if (state === 'connected') {
     lanFinalizeConnection();
-  } else if (state === 'failed' || state === 'disconnected' || state === 'closed') {
+  } else if (state === 'failed' || state === 'closed') {
     if (lanConnected) {
       lanOnConnectionLost();
     } else {
@@ -4064,13 +4127,17 @@ function lanOnHostConnState(state) {
 
 function lanFinalizeConnection() {
   if (lanConnected) return;  // idempotent (host's onconnectionstatechange + dc.onopen can both fire)
-  const wasInLAN = (gameMode === 3);
   lanConnected = true;
-  if (!wasInLAN && typeof setMode === 'function') setMode(3);
+  // Emparejamiento nuevo (o primer ingreso a LAN) → partida fresca desde la posición
+  // inicial en AMBOS lados (evita desincronización). Reconexión de la misma partida
+  // (gameMode ya 3 y sin bandera de inicio nuevo) → conserva el tablero.
+  const freshPairing = lanFreshStart || (gameMode !== 3);
+  lanFreshStart = false;
+  if (freshPairing && typeof setMode === 'function') setMode(3);  // setMode(3) → newGame()
   document.getElementById('lan-modal').classList.remove('open');
   lanWizardState = { role: null, step: 0 };
   if (typeof showToast === 'function') {
-    showToast(wasInLAN ? '🟢 Reconectado con el oponente' : '🟢 Conectado con el oponente');
+    showToast(freshPairing ? '🟢 Conectado con el oponente' : '🟢 Reconectado con el oponente');
   }
   lanSetBanner('connected');
   if (typeof renderBoard === 'function') renderBoard();
@@ -4138,6 +4205,9 @@ function lanOnDCOpen() {
   if (lanLocalColor == null) {
     lanLocalColor = (lanWizardState && lanWizardState.role === 'guest') ? 'b' : 'w';
   }
+  // Reinicia la partida (si es emparejamiento nuevo) ANTES de saludar/sincronizar,
+  // para que el sync refleje el tablero fresco y ambos lados queden idénticos.
+  lanFinalizeConnection();
   const myName = (currentProfile && currentProfile.name) ? currentProfile.name : 'Jugador';
   lanSend({ type: 'hello', protocol_version: LAN_PROTOCOL_VERSION, color: lanLocalColor, name: myName });
   if (typeof boardToFen === 'function') {
@@ -4146,7 +4216,6 @@ function lanOnDCOpen() {
       lanSend({ type: 'sync', fen, halfmove: halfmoveClock, fullmove: fullmoveNumber });
     } catch (_) {}
   }
-  lanFinalizeConnection();
 }
 
 function lanOnDCMessage(ev) {
@@ -4219,10 +4288,19 @@ function lanHandleMove(msg) {
   if (gameOver) return;
   const remoteColor = (lanLocalColor === 'w') ? 'b' : 'w';
   const turnColor = (turn === 'white') ? 'w' : 'b';
-  if (turnColor !== remoteColor) { lanCloseChannel('move-fuera-de-turno'); return; }
+  // Desincronización de turno/legalidad: avisamos e IGNORAMOS la jugada, pero
+  // NO cerramos el canal (cortar al primer desfase es peor UX que tolerarlo).
+  // Solo el JSON malformado / type ausente cierra el canal.
+  if (turnColor !== remoteColor) {
+    if (typeof showToast === 'function') showToast('⚠ Jugada recibida fuera de turno (ignorada)');
+    return;
+  }
   if (typeof msg.uci !== 'string') { lanCloseChannel('uci-invalido'); return; }
   const mv = lanParseUciToMove(msg.uci);
-  if (!mv) { lanCloseChannel('move-ilegal'); return; }
+  if (!mv) {
+    if (typeof showToast === 'function') showToast('⚠ Jugada remota no reconocida (posible desincronización)');
+    return;
+  }
   let promopiece = null;
   if (mv.special === 'promo') {
     const promoChar = (msg.promo === 'r' || msg.promo === 'b' || msg.promo === 'n') ? msg.promo : 'q';
@@ -4338,7 +4416,7 @@ async function lanGuestProcessOffer() {
     pc.oniceconnectionstatechange = function () {
       if (pc !== lanPC) return;
       const s = pc.iceConnectionState;
-      if (lanConnected && (s === 'disconnected' || s === 'failed' || s === 'closed')) {
+      if (lanConnected && (s === 'failed' || s === 'closed')) {
         lanOnConnectionLost();
       }
     };
@@ -4354,6 +4432,206 @@ async function lanGuestProcessOffer() {
     lanCleanupConnection();
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = '✓ Procesar oferta'; }
+  }
+}
+
+// ---------- Conexión automática (señalización vía servidor LAN) ----------
+// Reusa toda la maquinaria WebRTC; solo automatiza el intercambio de SDP a
+// través del mini-servidor (chess-lan-server.py). Las jugadas siguen viajando
+// cifradas de extremo a extremo por el canal WebRTC.
+
+async function lanPingSignaling() {
+  try {
+    const r = await fetch('/lan/ping', { cache: 'no-store' });
+    if (!r.ok) return false;
+    const j = await r.json();
+    return !!(j && j.ok);
+  } catch (_) { return false; }
+}
+
+function lanUpdateRolePickUI() {
+  const auto = document.getElementById('lan-auto-roles');
+  const manual = document.getElementById('lan-manual-roles');
+  const note = document.getElementById('lan-mode-note');
+  if (!auto || !manual || !note) return;
+  if (lanSignalingAvailable) {
+    auto.style.display = '';
+    manual.style.display = 'none';
+    note.innerHTML = 'Conexión automática (misma red). ¿Avanzado? <a href="#" onclick="lanForceManual(event)">Modo manual</a>';
+  } else {
+    auto.style.display = 'none';
+    manual.style.display = '';
+    note.textContent = 'Modo manual: copia y pega la oferta/respuesta entre ambos dispositivos.';
+  }
+}
+
+function lanForceManual(e) {
+  if (e && e.preventDefault) e.preventDefault();
+  const auto = document.getElementById('lan-auto-roles');
+  const manual = document.getElementById('lan-manual-roles');
+  const note = document.getElementById('lan-mode-note');
+  if (auto) auto.style.display = 'none';
+  if (manual) manual.style.display = '';
+  if (note) note.textContent = 'Modo manual: copia y pega la oferta/respuesta entre ambos dispositivos.';
+}
+
+function lanActivateStep(id) {
+  document.querySelectorAll('#lan-modal .lan-step').forEach(el => el.classList.remove('active'));
+  const el = document.getElementById(id);
+  if (el) el.classList.add('active');
+}
+
+function lanAutoStatus(id, text, isErr) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = text || '';
+  el.classList.toggle('lan-err', !!isErr);
+}
+
+// Crea la oferta WebRTC del anfitrión; devuelve el SDP serializado.
+async function lanCreateOffer() {
+  if (typeof RTCPeerConnection === 'undefined') throw new Error('Este navegador no soporta WebRTC.');
+  const pc = new RTCPeerConnection({ iceServers: [] });
+  lanPC = pc;
+  lanDC = pc.createDataChannel('chess', { ordered: true });
+  lanSetupDC(lanDC);
+  pc.oniceconnectionstatechange = function () {
+    if (pc !== lanPC) return;
+    const s = pc.iceConnectionState;
+    if (lanConnected && (s === 'failed' || s === 'closed')) lanOnConnectionLost();
+  };
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+  await lanWaitForIceComplete(pc);
+  if (lanPC !== pc) throw new Error('cancelado');
+  return JSON.stringify(pc.localDescription);
+}
+
+// Crea la respuesta WebRTC del invitado a partir de la oferta; devuelve el SDP.
+async function lanCreateAnswer(offer) {
+  if (typeof RTCPeerConnection === 'undefined') throw new Error('Este navegador no soporta WebRTC.');
+  lanCleanupConnection();
+  const pc = new RTCPeerConnection({ iceServers: [] });
+  lanPC = pc;
+  pc.ondatachannel = (ev) => { lanDC = ev.channel; lanSetupDC(lanDC); };
+  pc.oniceconnectionstatechange = function () {
+    if (pc !== lanPC) return;
+    const s = pc.iceConnectionState;
+    if (lanConnected && (s === 'failed' || s === 'closed')) lanOnConnectionLost();
+  };
+  await pc.setRemoteDescription(offer);
+  const answer = await pc.createAnswer();
+  await pc.setLocalDescription(answer);
+  await lanWaitForIceComplete(pc);
+  if (lanPC !== pc) throw new Error('cancelado');
+  return JSON.stringify(pc.localDescription);
+}
+
+// Anfitrión: genera código de sala, publica la oferta y espera la respuesta.
+async function lanAutoHostStart() {
+  lanCleanupConnection();
+  lanFreshStart = true;
+  lanWizardState = { role: 'host', step: 'auto' };
+  lanActivateStep('lan-auto-host');
+  const code = String(1000 + Math.floor(Math.random() * 9000));
+  lanRoom = code;
+  const codeEl = document.getElementById('lan-room-code');
+  if (codeEl) codeEl.textContent = code;
+  lanAutoStatus('lan-auto-host-status', 'Generando sala…', false);
+  try {
+    const sdp = await lanCreateOffer();
+    const pc = lanPC;
+    await fetch('/lan/offer', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ room: code, sdp }) });
+    lanAutoStatus('lan-auto-host-status', '🟡 Esperando a que tu rival se una…', false);
+    lanPollForAnswer(code, pc);
+  } catch (err) {
+    lanAutoStatus('lan-auto-host-status', 'Error: ' + (err && err.message ? err.message : String(err)), true);
+    lanCleanupConnection();
+  }
+}
+
+function lanPollForAnswer(room, pc) {
+  let stopped = false;
+  lanPollStop = () => { stopped = true; };
+  const tick = async () => {
+    if (stopped || lanPC !== pc || lanConnected) return;
+    try {
+      const r = await fetch('/lan/answer?room=' + encodeURIComponent(room), { cache: 'no-store' });
+      if (r.ok) {
+        const j = await r.json();
+        if (j && j.sdp) {
+          const answer = JSON.parse(j.sdp);
+          pc.onconnectionstatechange = () => {
+            if (pc !== lanPC) return;
+            const s = pc.connectionState;
+            if (s === 'connected') lanFinalizeConnection();
+            else if (s === 'failed' || s === 'closed') {
+              if (lanConnected) lanOnConnectionLost();
+              else lanAutoStatus('lan-auto-host-status', '🔴 No se pudo conectar. Verifica que ambos estén en la misma red.', true);
+            }
+          };
+          await pc.setRemoteDescription(answer);
+          lanAutoStatus('lan-auto-host-status', '🟡 Conectando…', false);
+          lanPollStop = null;
+          return;
+        }
+      }
+    } catch (_) {}
+    if (!stopped && lanPC === pc && !lanConnected) setTimeout(tick, 1200);
+  };
+  setTimeout(tick, 800);
+}
+
+// Invitado: muestra el campo para escribir el código de sala.
+function lanShowAutoJoin() {
+  lanCleanupConnection();
+  lanFreshStart = true;
+  lanWizardState = { role: 'guest', step: 'auto' };
+  lanActivateStep('lan-auto-join');
+  const inp = document.getElementById('lan-join-code');
+  if (inp) inp.value = '';
+  lanAutoStatus('lan-auto-join-status', '', false);
+  setTimeout(() => { const i = document.getElementById('lan-join-code'); if (i) i.focus(); }, 60);
+}
+
+// Invitado: busca la sala, crea la respuesta y la publica.
+async function lanAutoJoin() {
+  const inp = document.getElementById('lan-join-code');
+  const btn = document.getElementById('lan-join-btn');
+  const code = ((inp && inp.value) || '').trim();
+  if (!/^\d{3,5}$/.test(code)) { lanAutoStatus('lan-auto-join-status', 'Escribe el código de sala (4 dígitos).', true); return; }
+  if (btn) { btn.disabled = true; btn.textContent = 'Conectando…'; }
+  lanAutoStatus('lan-auto-join-status', 'Buscando la sala…', false);
+  try {
+    const r = await fetch('/lan/offer?room=' + encodeURIComponent(code), { cache: 'no-store' });
+    if (!r.ok) {
+      lanAutoStatus('lan-auto-join-status', 'No encuentro esa sala. Revisa el código y que el anfitrión ya la haya creado.', true);
+      if (btn) { btn.disabled = false; btn.textContent = '✓ Conectar'; }
+      return;
+    }
+    const j = await r.json();
+    if (!j || !j.sdp) {
+      lanAutoStatus('lan-auto-join-status', 'La sala aún no está lista. Espera un momento e intenta de nuevo.', true);
+      if (btn) { btn.disabled = false; btn.textContent = '✓ Conectar'; }
+      return;
+    }
+    const offer = JSON.parse(j.sdp);
+    const sdp = await lanCreateAnswer(offer);
+    const pc = lanPC;
+    lanRoom = code;
+    pc.onconnectionstatechange = () => {
+      if (pc !== lanPC) return;
+      const s = pc.connectionState;
+      if (s === 'failed' || s === 'closed') {
+        if (lanConnected) lanOnConnectionLost();
+        else lanAutoStatus('lan-auto-join-status', '🔴 No se pudo conectar. Verifica que ambos estén en la misma red.', true);
+      }
+    };
+    await fetch('/lan/answer', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ room: code, sdp }) });
+    lanAutoStatus('lan-auto-join-status', '🟡 Conectando…', false);
+  } catch (err) {
+    lanAutoStatus('lan-auto-join-status', 'Error: ' + (err && err.message ? err.message : String(err)), true);
+    if (btn) { btn.disabled = false; btn.textContent = '✓ Conectar'; }
   }
 }
 
@@ -4766,27 +5044,80 @@ function deleteProfile(id) {
 
 // ----- PIN hashing -----
 // SHA-256 vía Web Crypto. Requiere contexto seguro (HTTPS/localhost/file://).
-// Sobre HTTP no-localhost, crypto.subtle es undefined → fallback degradado (sin PIN).
+// PIN: SHA-256. En contexto seguro (HTTPS/localhost/file://) usa Web Crypto;
+// sobre HTTP por IP de LAN (donde crypto.subtle NO existe — p. ej. el celular
+// en http://192.168.x.x) cae a un SHA-256 en JS puro que produce EXACTAMENTE el
+// mismo hash. Así el PIN funciona en cualquier contexto y los hashes son
+// intercambiables.
 
 function isCryptoSubtleAvailable() {
   return typeof crypto !== 'undefined' && crypto.subtle && typeof crypto.subtle.digest === 'function';
 }
 
-async function hashPin(pin) {
-  if (!isCryptoSubtleAvailable()) throw new Error('Web Crypto no disponible en este contexto');
-  const data = new TextEncoder().encode(String(pin));
-  const buf = await crypto.subtle.digest('SHA-256', data);
-  const bytes = new Uint8Array(buf);
+function _bytesToHex(bytes) {
   let hex = '';
-  for (let i = 0; i < bytes.length; i++) {
-    hex += bytes[i].toString(16).padStart(2, '0');
-  }
+  for (let i = 0; i < bytes.length; i++) hex += bytes[i].toString(16).padStart(2, '0');
   return hex;
+}
+
+// SHA-256 en JS puro (sobre una Uint8Array) — verificado idéntico al estándar.
+const _SHA256_K = [
+  0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+  0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+  0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+  0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+  0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+  0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+  0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+  0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2
+];
+
+function _sha256HexBytes(bytes) {
+  let h0=0x6a09e667,h1=0xbb67ae85,h2=0x3c6ef372,h3=0xa54ff53a,h4=0x510e527f,h5=0x9b05688c,h6=0x1f83d9ab,h7=0x5be0cd19;
+  const l = bytes.length, bitLen = l * 8, withOne = l + 1;
+  const k = (56 - withOne % 64 + 64) % 64;
+  const total = withOne + k + 8;
+  const m = new Uint8Array(total);
+  m.set(bytes);
+  m[l] = 0x80;
+  const hi = Math.floor(bitLen / 0x100000000), lo = bitLen >>> 0;
+  m[total-8]=(hi>>>24)&0xff; m[total-7]=(hi>>>16)&0xff; m[total-6]=(hi>>>8)&0xff; m[total-5]=hi&0xff;
+  m[total-4]=(lo>>>24)&0xff; m[total-3]=(lo>>>16)&0xff; m[total-2]=(lo>>>8)&0xff; m[total-1]=lo&0xff;
+  const w = new Uint32Array(64);
+  const rotr = (x,n) => (x>>>n)|(x<<(32-n));
+  for (let i=0;i<total;i+=64){
+    for (let t=0;t<16;t++) w[t]=((m[i+t*4]<<24)|(m[i+t*4+1]<<16)|(m[i+t*4+2]<<8)|(m[i+t*4+3]))>>>0;
+    for (let t=16;t<64;t++){
+      const s0=rotr(w[t-15],7)^rotr(w[t-15],18)^(w[t-15]>>>3);
+      const s1=rotr(w[t-2],17)^rotr(w[t-2],19)^(w[t-2]>>>10);
+      w[t]=(w[t-16]+s0+w[t-7]+s1)>>>0;
+    }
+    let a=h0,b=h1,c=h2,d=h3,e=h4,f=h5,g=h6,h=h7;
+    for (let t=0;t<64;t++){
+      const S1=rotr(e,6)^rotr(e,11)^rotr(e,25);
+      const ch=(e&f)^((~e)&g);
+      const t1=(h+S1+ch+_SHA256_K[t]+w[t])>>>0;
+      const S0=rotr(a,2)^rotr(a,13)^rotr(a,22);
+      const maj=(a&b)^(a&c)^(b&c);
+      const t2=(S0+maj)>>>0;
+      h=g; g=f; f=e; e=(d+t1)>>>0; d=c; c=b; b=a; a=(t1+t2)>>>0;
+    }
+    h0=(h0+a)>>>0; h1=(h1+b)>>>0; h2=(h2+c)>>>0; h3=(h3+d)>>>0; h4=(h4+e)>>>0; h5=(h5+f)>>>0; h6=(h6+g)>>>0; h7=(h7+h)>>>0;
+  }
+  return [h0,h1,h2,h3,h4,h5,h6,h7].map(x=>(x>>>0).toString(16).padStart(8,'0')).join('');
+}
+
+async function hashPin(pin) {
+  const data = new TextEncoder().encode(String(pin));
+  if (isCryptoSubtleAvailable()) {
+    const buf = await crypto.subtle.digest('SHA-256', data);
+    return _bytesToHex(new Uint8Array(buf));
+  }
+  return _sha256HexBytes(data);  // fallback JS puro (mismo hash que Web Crypto)
 }
 
 async function verifyPin(profile, pin) {
   if (!profile || !profile.pinHash) return true;  // sin PIN, siempre acepta
-  if (!isCryptoSubtleAvailable()) return false;   // no podemos verificar, denegamos
   const h = await hashPin(pin);
   return h === profile.pinHash;
 }
@@ -5258,12 +5589,6 @@ async function profileCreateSubmit() {
   const pin2 = (document.getElementById('profile-create-pin2').value || '').trim();
   profileSetStatus('profile-create-status', '', false);
   if (!name) { profileSetStatus('profile-create-status', 'El nombre es obligatorio', true); return; }
-  if (!isCryptoSubtleAvailable()) {
-    profileSetStatus('profile-create-status',
-      'No se puede crear un perfil sin PIN cifrado. Abrí la app desde HTTPS o desde localhost.',
-      true);
-    return;
-  }
   if (!pin) { profileSetStatus('profile-create-status', 'El PIN es obligatorio (4 dígitos)', true); return; }
   if (!/^[0-9]{4}$/.test(pin)) {
     profileSetStatus('profile-create-status', 'El PIN debe ser de 4 dígitos numéricos', true);

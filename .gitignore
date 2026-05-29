@@ -24,3 +24,5 @@ Thumbs.db
 # Node (in case a build tool ever sneaks in)
 node_modules/
 *.log
+__pycache__/
+*.pyc

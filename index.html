@@ -1603,7 +1603,7 @@ Documento de referencia para usuarios y desarrolladores. Se actualiza incrementa
 - _(Fase 9)_ Performance audit de `renderBoard` (13 asserts): mean 0.55ms / p50 0.30ms en node con DOM mockeado. Browser estimado 3-7ms incluyendo layout+paint. Margen vs 60fps (16.67ms): >2×. Confirmado que `pointermove` NO llama `renderBoard` (drag mueve overlay con `style.left/top`). Sin optimización aplicada per Karpathy.
 - _(Post-P1)_ Perfiles locales (81 asserts). IndexedDB schema bump v1→v2: nuevo almacén `profiles` (`{id, name, pinHash, createdAt, isGuest?}`) + índice `profileId` en `games`. Migración auto-crea perfil "Invitado" y asigna las partidas legacy. **PIN obligatorio de 4 dígitos en la creación** (con campo de confirmación para evitar tipearlo mal), hasheado con SHA-256 vía `crypto.subtle.digest`. Bloqueo de 30s tras 3 intentos fallidos (estado en memoria). Pantalla a pantalla completa al cargar bloquea el juego hasta elegir o crear perfil; el PIN se vuelve a pedir en cada arranque (sin sesión persistente). Botón `👤 nombre` en la barra de controles abre menú con editar/cambiar perfil/borrar. `buildGameRecord` asigna `profileId` y usa nombre del perfil en `white`/`black` para 1p y LAN. `lanOnDCOpen` envía el nombre del perfil en el `hello`. La creación rechaza con mensaje explicativo si el contexto no es seguro (HTTP sobre IP de LAN cruda → no hay Web Crypto disponible); funciona con HTTPS, `localhost`, o `file://`.
 - _(Post-P1)_ Colección "♛ Partidas Célebres" (Clásicas): 123 partidas inmortales de la historia (1820–2006: el Inmortal de Anderssen, la Siempreviva, la Opera Game de Morphy, la Partida del Siglo de Fischer, el Inmortal de Kasparov, Rotlewi–Rubinstein, Steinitz–von Bardeleben, etc.). Embebidas como movetext SAN compacto (~44 KB) en `CLASSIC_GAMES` y expandidas con `pgnToGameRecord` al abrir cada una (parseo perezoso). Las partidas fueron verificadas jugada por jugada contra el motor (round-trip 123/123 tras retirar una transcripción duplicada de la Inmortal). Botón "♛ Clásicas" abre un modal con buscador (por jugador/evento/año) y tabla; "👁 Ver" abre la partida en el visor de estudio vía `viewGameRecord`. Colección de **solo lectura**: no se guardan en IndexedDB ni dependen del perfil activo. Movimientos tomados de colecciones públicas de _immortal games_ (las jugadas de ajedrez son hechos, sin copyright).
-- _(Post-P1)_ Narración dramática de Clásicas (12 de 123 partidas con guión, en progreso por lotes). Botón "🔊 Narrar" en el visor de estudio (solo aparece si la partida tiene guión). Usa el lector de voz integrado del navegador (Web Speech API / `speechSynthesis`) — **100% offline, cero dependencias y cero archivos de audio**: el guión es texto embebido en `CLASSIC_NARRATION` (con clave `narrationKey`, un hash de las jugadas) y la voz la pone el sistema del usuario. `pickSpanishVoice()` prefiere una voz **local** en español (es-MX > es-US/es-419 > es-\*) para garantizar que no haya tráfico de red. La reproducción narrada arranca en la posición inicial y avanza **jugada por jugada**, una pieza a la vez con un deslizamiento suave (clon flotante que reutiliza el estilo `.drag-overlay` del arrastre); se detiene a narrar en los plies con guión —las piezas quedan inmóviles mientras habla la voz— y reanuda al terminar, hasta el final de la partida (`advanceNarration` + `narrateAtPly` + `animateReplayMove`). El ritmo de las jugadas en silencio se mantiene ágil (~490 ms/jugada) y los guiones intercalan líneas puente en los huecos largos, de modo que ningún silencio entre narraciones supere ~3.5 s. Ritmo (`rate`) más lento en los momentos clímax (sacrificios de alfil y de dama). Si el usuario navega manualmente, la narración se detiene sola (guard en `replayGoto` con la bandera `narrationDriving`); también se detiene al salir del visor. Los guiones se escriben por lotes para toda la colección (anclados a las jugadas reales, con `rate` más lento en los clímax) y se van quedando listos para una voz premium futura. La clave `narrationKey` es un hash de las jugadas (evita colisiones entre partidas con mismos jugadores/año). En la lista, las partidas con guión muestran 🔊.
+- _(Post-P1)_ Narración dramática de Clásicas (24 de 123 partidas con guión, en progreso por lotes). Botón "🔊 Narrar" en el visor de estudio (solo aparece si la partida tiene guión). Usa el lector de voz integrado del navegador (Web Speech API / `speechSynthesis`) — **100% offline, cero dependencias y cero archivos de audio**: el guión es texto embebido en `CLASSIC_NARRATION` (con clave `narrationKey`, un hash de las jugadas) y la voz la pone el sistema del usuario. `pickSpanishVoice()` prefiere una voz **local** en español (es-MX > es-US/es-419 > es-\*) para garantizar que no haya tráfico de red. La reproducción narrada arranca en la posición inicial y avanza **jugada por jugada**, una pieza a la vez con un deslizamiento suave (clon flotante que reutiliza el estilo `.drag-overlay` del arrastre); se detiene a narrar en los plies con guión —las piezas quedan inmóviles mientras habla la voz— y reanuda al terminar, hasta el final de la partida (`advanceNarration` + `narrateAtPly` + `animateReplayMove`). El ritmo de las jugadas en silencio se mantiene ágil (~490 ms/jugada) y los guiones intercalan líneas puente en los huecos largos, de modo que ningún silencio entre narraciones supere ~3.5 s. Ritmo (`rate`) más lento en los momentos clímax (sacrificios de alfil y de dama). Si el usuario navega manualmente, la narración se detiene sola (guard en `replayGoto` con la bandera `narrationDriving`); también se detiene al salir del visor. Los guiones se escriben por lotes para toda la colección (anclados a las jugadas reales, con `rate` más lento en los clímax) y se van quedando listos para una voz premium futura. La clave `narrationKey` es un hash de las jugadas (evita colisiones entre partidas con mismos jugadores/año). En la lista, las partidas con guión muestran 🔊.
 
 ---
 
@@ -5993,6 +5993,192 @@ CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[11])] = { // #11 Steinitz vs Mongre
     { ply: 49, rate: 0.9,  text: 'Steinitz no suelta la presa: suma más piezas al ataque y va cerrando cada salida.' },
     { ply: 55, rate: 0.88, text: 'El cerco final: al rey negro ya no le queda ni una sola casilla.' },
     { ply: 57, rate: 0.85, text: '¡Dama toma e8! Jaque mate. El rey, que huyó hasta el otro extremo del mundo, no encontró más que la muerte. Steinitz, implacable.' },
+  ]
+};
+
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[12])] = { // #12 Steinitz vs Anderssen, 1866 (match)
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Londres, 1866. El match que marcó el cambio de era: el veterano Anderssen contra el ascendente Steinitz. Steinitz ganaría el duelo... pero esta partida es del viejo león.' },
+    { ply: 6,  rate: 0.96, text: 'Gambito de Rey aceptado: las negras avanzan los peones del flanco rey y Steinitz lanza su caballo a la carga.' },
+    { ply: 12, rate: 0.95, text: 'El rey blanco se queda sin enroque, atrapado en el centro, mientras Anderssen coloca sus piezas con calma.' },
+    { ply: 18, rate: 0.95, text: 'Maniobras de tanteo: ambos maestros miden fuerzas antes del choque decisivo.' },
+    { ply: 24, rate: 0.94, text: 'El centro se abre y estallan las capturas; Anderssen calcula con la frialdad de los viejos tiempos.' },
+    { ply: 26, rate: 0.93, text: '¡La dama negra se cobra una pieza! Anderssen se lleva material y toma las riendas.' },
+    { ply: 32, rate: 0.93, text: 'El veterano consolida su botín y empieza a empujar, sin prisa pero sin pausa.' },
+    { ply: 38, rate: 0.93, text: 'Anderssen maniobra con mano firme, apagando los últimos coletazos del joven Steinitz.' },
+    { ply: 44, rate: 0.92, text: 'La posición blanca se desmorona pieza a pieza; ya no hay defensa que valga.' },
+    { ply: 48, rate: 0.9,  text: 'Sin recursos, Steinitz abandona. El viejo maestro se cobra esta con orgullo, antes de ceder el trono de la era.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[13])] = { // #13 Hamppe vs Meitner, 1872 (Empate Inmortal)
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Viena, 1872. Una de las partidas más asombrosas jamás jugadas: el Empate Inmortal. Meitner, con negras, sacrificará casi todo... no para ganar, sino para forzar tablas con pura belleza.' },
+    { ply: 6,  rate: 0.9,  text: '¡Alfil toma f2, jaque! Arranca la inmolación. El rey blanco tendrá que salir a caminar a la intemperie.' },
+    { ply: 12, rate: 0.92, text: 'Jaque tras jaque, el rey blanco trepa hasta d3 y más allá, arrastrado al centro mismo del tablero.' },
+    { ply: 18, rate: 0.88, text: '¡Las negras entregan hasta la dama! El rey blanco, ya en a4, deambula por tierra de nadie.' },
+    { ply: 24, rate: 0.92, text: 'Con apenas un puñado de piezas, Meitner teje una red de jaques en torno al rey errante.' },
+    { ply: 30, rate: 0.92, text: 'El rey blanco intenta huir capturando piezas, pero cada casilla lo conduce a otro jaque.' },
+    { ply: 36, rate: 0.86, text: '¡Alfil b7, jaque... perpetuo! Las negras dan tablas eternas. El Empate Inmortal: una obra maestra sin vencedor.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[14])] = { // #14 Zukertort vs Blackburne, 1883 (Gold Coin Game)
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Londres, 1883. Zukertort, con las blancas, frente a Blackburne. La belleza de esta partida será tal que recibirá un premio en monedas de oro.' },
+    { ply: 7,  rate: 0.96, text: 'Una apertura tranquila, casi moderna: Zukertort desarrolla con paciencia, sin revelar sus intenciones.' },
+    { ply: 14, rate: 0.95, text: 'Ambos enrocan y completan el desarrollo; la calma antes de la tempestad.' },
+    { ply: 21, rate: 0.95, text: 'Las piezas blancas miran poco a poco hacia el flanco rey, donde Blackburne ha enrocado.' },
+    { ply: 28, rate: 0.94, text: 'Zukertort prepara la ruptura en el centro, abriendo líneas hacia el monarca enemigo.' },
+    { ply: 35, rate: 0.94, text: 'Los peones blancos avanzan como una marea, ganando espacio y asfixiando a las negras.' },
+    { ply: 42, rate: 0.93, text: 'La presión es enorme: cada pieza blanca ocupa su puesto de combate, lista para el asalto.' },
+    { ply: 48, rate: 0.93, text: 'El centro arde; Zukertort empuja sus peones hacia adelante mientras coloca la última pieza.' },
+    { ply: 54, rate: 0.9,  text: 'Y ahora, la chispa que enciende todo el espectáculo...' },
+    { ply: 55, rate: 0.85, text: '¡Dama a b4! Una jugada serena, casi modesta, que en realidad es el corazón de una combinación deslumbrante.' },
+    { ply: 58, rate: 0.88, text: 'Zukertort entrega torre y abre el enroque negro; el rey de Blackburne queda al aire.' },
+    { ply: 61, rate: 0.86, text: 'Caen los alfiles con jaque, uno tras otro, arrastrando al rey negro a la perdición.' },
+    { ply: 65, rate: 0.85, text: 'Y el remate: ¡Dama toma e7! Una de las combinaciones más bellas del siglo XIX. La partida de la moneda de oro.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[15])] = { // #15 Steinitz vs Sellman, 1885
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Steinitz con las blancas, en plena madurez de su revolución: el ajedrez ya no es solo ataque, sino la acumulación paciente de pequeñas ventajas.' },
+    { ply: 7,  rate: 0.96, text: 'Defensa Francesa: Steinitz cierra el centro con e5 y se prepara para una guerra de posición, lenta y científica.' },
+    { ply: 14, rate: 0.95, text: 'Steinitz maniobra sin prisa, mejorando cada pieza un poquito, fiel a su nueva doctrina.' },
+    { ply: 21, rate: 0.95, text: 'Cambia las piezas que le estorban y se queda con una estructura superior. Pura técnica.' },
+    { ply: 28, rate: 0.94, text: 'Las negras buscan contrajuego, pero Steinitz tiene cada casilla bajo control.' },
+    { ply: 35, rate: 0.94, text: 'Enroca tarde, sin urgencia: su rey está seguro y sus piezas dominan el tablero.' },
+    { ply: 42, rate: 0.94, text: 'Los caballos blancos saltan a posiciones ideales; la ventaja crece, gota a gota.' },
+    { ply: 49, rate: 0.93, text: 'Steinitz invade por la columna abierta y asfixia poco a poco a las piezas negras.' },
+    { ply: 56, rate: 0.93, text: 'La presión posicional es ya insoportable; las negras solo pueden esperar el golpe.' },
+    { ply: 62, rate: 0.92, text: 'Cambio de damas: a Steinitz le encanta simplificar cuando la técnica ya decidió la partida.' },
+    { ply: 69, rate: 0.9,  text: 'Con dominio total, Steinitz remata. Así jugaba el primer campeón del mundo: estrangulando sin un solo error.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[16])] = { // #16 Robert Steel vs NN, 1886 (Calcutta)
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Calcuta, 1886. Una miniatura de fantasía romántica, donde el rey blanco se atreve a lo impensable: marchar hacia adelante en plena batalla.' },
+    { ply: 7,  rate: 0.96, text: 'Gambito Vienés: las blancas ofrecen fuego en el centro y, ¡el rey se asoma a e2!, renunciando al enroque.' },
+    { ply: 13, rate: 0.94, text: 'Las negras dan jaques y abren líneas, creyendo que el rey blanco está perdido.' },
+    { ply: 19, rate: 0.93, text: 'Pero Steel avanza su rey con audacia, esquivando los jaques como un equilibrista.' },
+    { ply: 25, rate: 0.92, text: 'El rey blanco camina hasta c4, luego c5, en pleno corazón del campo enemigo. Increíble sangre fría.' },
+    { ply: 31, rate: 0.92, text: 'Mientras tanto, las piezas blancas devoran material y voltean la partida.' },
+    { ply: 37, rate: 0.92, text: 'El rey llega hasta a6, ileso, y las negras se quedan sin ataque y sin material.' },
+    { ply: 44, rate: 0.92, text: 'Steel consolida la ventaja; la temeridad del rey viajero ha resultado triunfal.' },
+    { ply: 51, rate: 0.9,  text: 'Con el rey paseando por el campo enemigo y material de sobra, las blancas se imponen. Una rareza deliciosa del ajedrez romántico.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[17])] = { // #17 Lasker vs Bauer, 1889 (doble sacrificio de alfiles)
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Ámsterdam, 1889. Un joven Emanuel Lasker, futuro campeón del mundo, está a punto de estrenar una combinación que se volvería un patrón eterno: el doble sacrificio de alfiles.' },
+    { ply: 7,  rate: 0.96, text: 'Apertura tranquila por flancos; ambos despliegan sus alfiles en grandes diagonales apuntando al enroque.' },
+    { ply: 14, rate: 0.95, text: 'Las piezas se acomodan, los reyes enrocan; Lasker va concentrando fuerzas hacia el flanco rey.' },
+    { ply: 21, rate: 0.94, text: 'Lasker maniobra sus caballos hacia el ataque, mientras sus dos alfiles vigilan al rey enemigo.' },
+    { ply: 28, rate: 0.92, text: 'Todo está listo. Los dos alfiles blancos apuntan como cañones al enroque negro...' },
+    { ply: 29, rate: 0.86, text: '¡Alfil toma h7, jaque! El primer sacrificio. El rey negro debe capturar y salir de su refugio.' },
+    { ply: 33, rate: 0.85, text: '¡Y ahora el otro! ¡Alfil toma g7! El segundo alfil se inmola para desnudar por completo al rey.' },
+    { ply: 35, rate: 0.88, text: 'Dama g4, jaque: con el rey negro al desnudo, la dama entra a rematar.' },
+    { ply: 41, rate: 0.86, text: '¡Torre toma h6! Lasker recupera con creces el material: un golpe doble que se gana a la dama negra.' },
+    { ply: 47, rate: 0.92, text: 'Con dama de ventaja, el resto es cuestión de técnica para el futuro campeón.' },
+    { ply: 53, rate: 0.92, text: 'Lasker empuja sus peones y mantiene al rey negro acosado, sin un respiro.' },
+    { ply: 59, rate: 0.9,  text: 'Las piezas blancas convergen para el desenlace; Bauer ya no tiene defensa.' },
+    { ply: 65, rate: 0.88, text: 'Jaque decisivo. El doble sacrificio de alfiles de Lasker se vuelve, desde hoy, parte del manual de todo ajedrecista.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[18])] = { // #18 Reinisch vs Traxler, 1890 (Contraataque Traxler)
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Hostouň, 1890. El nacimiento de una de las celadas más salvajes del ajedrez: el Contraataque Traxler. Las negras no defienden el jaque... contraatacan.' },
+    { ply: 6,  rate: 0.95, text: 'Las blancas amenazan f7 con su caballo, la jugada de los aficionados. Pero Traxler tiene preparada una bomba.' },
+    { ply: 9,  rate: 0.9,  text: '¡Caballo toma f7! Las blancas pican el anzuelo, atacando dama y torre... y entonces llega la respuesta.' },
+    { ply: 12, rate: 0.88, text: '¡Alfil toma f2, jaque! Traxler ignora su dama y lanza el contraataque. El rey blanco tendrá que salir a morir.' },
+    { ply: 18, rate: 0.92, text: 'El rey blanco es arrastrado al centro entre jaques; las negras sacrifican sin piedad para cazarlo.' },
+    { ply: 24, rate: 0.9,  text: 'Pieza tras pieza cae al fuego del ataque negro. El rey blanco vaga sin escolta por tierra hostil.' },
+    { ply: 30, rate: 0.88, text: 'El rey, ya en b4, está completamente acorralado. La red no deja ni una salida.' },
+    { ply: 34, rate: 0.85, text: '¡Peón c5! Jaque mate. Un peón humilde corona la cacería. El Contraataque Traxler entra en la leyenda.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[19])] = { // #19 Steinitz vs Tchigorin, 1892 (WC)
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'La Habana, 1892. Campeonato del mundo: Steinitz defiende su corona frente al fogoso Chigorin. Esta partida será una de las más célebres del match.' },
+    { ply: 7,  rate: 0.96, text: 'Apertura Española, Defensa Steinitz. Juego clásico, sólido, donde cada bando construye su plan con cuidado.' },
+    { ply: 14, rate: 0.95, text: 'Ambos enrocan; Chigorin, con negras, prepara su típico contrajuego con piezas activas.' },
+    { ply: 21, rate: 0.94, text: 'Steinitz avanza los peones del flanco rey, decidido a abrir líneas contra el monarca negro.' },
+    { ply: 28, rate: 0.94, text: 'El centro se rompe y las piezas chocan; la tensión sube en cada jugada.' },
+    { ply: 35, rate: 0.94, text: 'Steinitz reagrupa: coloca alfil y dama apuntando al enroque negro, sin prisa pero implacable.' },
+    { ply: 42, rate: 0.93, text: 'Avanza el peón central como una cuña; las piezas blancas convergen hacia h7.' },
+    { ply: 47, rate: 0.85, text: '¡Torre toma h7, jaque! Steinitz sacrifica para volar el refugio del rey negro.' },
+    { ply: 49, rate: 0.87, text: 'Dama h1, jaque: la dama entra por la diagonal abierta a rematar.' },
+    { ply: 51, rate: 0.87, text: 'Alfil h6, jaque: el rey negro es expulsado a campo abierto, sin defensores.' },
+    { ply: 55, rate: 0.85, text: '¡Dama toma d4, jaque... y la partida está sentenciada! Steinitz defiende su corona con una joya de ataque.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[20])] = { // #20 Charousek vs Wollner, 1893
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Kaschau, 1893. Rudolf Charousek, una estrella fugaz que deslumbró antes de morir jovencísimo, firma aquí una de sus miniaturas inmortales.' },
+    { ply: 7,  rate: 0.96, text: 'Gambito del centro: Charousek entrega peones por desarrollo y líneas abiertas. Ataque puro desde la salida.' },
+    { ply: 14, rate: 0.95, text: 'Ambos enrocan corto; Charousek apunta de inmediato sus piezas hacia el rey negro.' },
+    { ply: 18, rate: 0.9,  text: '¡Caballo toma f7! El sacrificio que abre el enroque y arranca al rey de su casa.' },
+    { ply: 22, rate: 0.92, text: 'Los peones blancos avanzan hacia la coronación, sumándose al ataque como ariete.' },
+    { ply: 28, rate: 0.91, text: 'El rey negro, acorralado, intenta resistir mientras Charousek prepara el golpe final.' },
+    { ply: 33, rate: 0.86, text: '¡Dama e8, jaque! Charousek entrega la dama para forzar el desenlace.' },
+    { ply: 35, rate: 0.85, text: 'El peón corona convertido en dama, con jaque; la red ya está cerrada.' },
+    { ply: 37, rate: 0.85, text: '¡Alfil d6! Jaque mate. Una miniatura perfecta del genio que se fue demasiado pronto.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[21])] = { // #21 Tarrasch vs Schlechter, 1894
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Siegbert Tarrasch, el gran maestro y pedagogo, lleva las blancas: para él, el ajedrez tiene reglas claras, y aquí las aplica con elegancia.' },
+    { ply: 7,  rate: 0.96, text: 'Apertura Española otra vez: desarrollo armónico, control del centro, los principios clásicos en estado puro.' },
+    { ply: 14, rate: 0.95, text: 'Cambios en el centro: Tarrasch se queda con una pequeña ventaja de estructura y de espacio.' },
+    { ply: 21, rate: 0.94, text: 'Coloca sus torres en las columnas adecuadas; cada pieza tiene un propósito.' },
+    { ply: 28, rate: 0.94, text: 'Tarrasch maniobra con paciencia frente al sólido Schlechter, apretando milímetro a milímetro.' },
+    { ply: 35, rate: 0.94, text: 'Reagrupa caballos y dama, buscando el punto débil en el campo negro.' },
+    { ply: 42, rate: 0.93, text: 'Avanza los peones del flanco rey para ganar espacio y abrir una brecha.' },
+    { ply: 49, rate: 0.93, text: 'La presión se acumula; Schlechter resiste, pero cada vez tiene menos aire.' },
+    { ply: 56, rate: 0.93, text: 'Tarrasch concentra sus fuerzas y prepara la ruptura decisiva.' },
+    { ply: 63, rate: 0.92, text: 'Se abren las líneas hacia el rey negro; la técnica clásica está a punto de cobrar su premio.' },
+    { ply: 69, rate: 0.9,  text: 'Con dominio total, Tarrasch avanza al desenlace. Una lección de ajedrez de manual, firmada por su mayor maestro.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[22])] = { // #22 Steinitz vs von Bardeleben, 1895 (Hastings)
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Hastings, 1895. Steinitz, ya veterano, está por crear una de las combinaciones más célebres de la historia... ante un rival que no soportará verla.' },
+    { ply: 7,  rate: 0.96, text: 'Giuoco Piano: desarrollo clásico, lucha por el centro, piezas saliendo con naturalidad.' },
+    { ply: 14, rate: 0.95, text: 'El centro estalla en cambios; Steinitz busca la iniciativa con sus piezas más activas.' },
+    { ply: 21, rate: 0.94, text: 'Cambios y más cambios: Steinitz se queda con un rey negro algo incómodo, sin enroque seguro.' },
+    { ply: 27, rate: 0.93, text: '¡Torre a e1! Steinitz clava al rey enemigo en la columna abierta, atrapándolo en el centro.' },
+    { ply: 33, rate: 0.92, text: 'Avanza el peón a d5 y planta un caballo en e6: la posición negra cruje por todos lados.' },
+    { ply: 37, rate: 0.91, text: 'La dama blanca se suma al asedio; el rey negro, clavado en el centro, no encuentra dónde refugiarse.' },
+    { ply: 41, rate: 0.9,  text: 'Las piezas blancas rodean al rey de von Bardeleben. El golpe está a punto de caer.' },
+    { ply: 43, rate: 0.85, text: '¡Torre toma e7, jaque! Y aquí la maravilla: la torre no se puede capturar, y los jaques se encadenan.' },
+    { ply: 45, rate: 0.86, text: 'Torre f7, jaque. El rey negro baila, pero la torre blanca es intocable en cada paso.' },
+    { ply: 47, rate: 0.86, text: 'Torre g7, jaque. Von Bardeleben, incapaz de soportarlo, se levanta y abandona la sala sin decir palabra.' },
+    { ply: 49, rate: 0.85, text: '¡Torre toma h7, jaque! Steinitz anunció un mate forzado en varias jugadas. Una obra inmortal, aunque el rival huyera de ella.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[23])] = { // #23 Pillsbury vs Lasker, 1896 (San Petersburgo)
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'San Petersburgo, 1896. Pillsbury, con blancas, contra Emanuel Lasker. De esta partida saldrá uno de los ataques de rey más famosos jamás concebidos.' },
+    { ply: 7,  rate: 0.96, text: 'Gambito de Dama: planteo clásico y profundo, donde ambos gigantes maniobran por el centro.' },
+    { ply: 14, rate: 0.95, text: 'Pillsbury enroca largo; los reyes quedan en flancos opuestos. Eso solo significa una cosa: una carrera de ataques.' },
+    { ply: 21, rate: 0.94, text: 'Lasker abre líneas en el centro y dirige sus piezas hacia el rey blanco del flanco de dama.' },
+    { ply: 28, rate: 0.93, text: 'Cambios en el corazón del tablero; Lasker acumula fuerzas para el asalto contra el enroque enemigo.' },
+    { ply: 34, rate: 0.85, text: '¡Torre toma c3! El sacrificio inmortal de Lasker: destroza el escudo de peones del rey blanco.' },
+    { ply: 40, rate: 0.88, text: 'Dama b6, jaque: Lasker abre la cacería. El rey blanco queda al desnudo en su propio flanco.' },
+    { ply: 46, rate: 0.91, text: 'Las piezas negras invaden por las columnas abiertas; Pillsbury intenta su propio ataque, pero llega tarde.' },
+    { ply: 52, rate: 0.9,  text: 'Lasker calcula la carrera con frialdad: su ataque es más rápido, por un solo tiempo decisivo.' },
+    { ply: 58, rate: 0.88, text: 'El rey blanco es arrastrado a la muerte mientras los peones negros avanzan con jaque.' },
+    { ply: 60, rate: 0.86, text: '¡Dama c4, jaque! Pillsbury abandona. Lasker gana una de las partidas de ataque más admiradas de todos los tiempos.' },
   ]
 };
 

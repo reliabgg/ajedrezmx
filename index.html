@@ -1603,7 +1603,7 @@ Documento de referencia para usuarios y desarrolladores. Se actualiza incrementa
 - _(Fase 9)_ Performance audit de `renderBoard` (13 asserts): mean 0.55ms / p50 0.30ms en node con DOM mockeado. Browser estimado 3-7ms incluyendo layout+paint. Margen vs 60fps (16.67ms): >2×. Confirmado que `pointermove` NO llama `renderBoard` (drag mueve overlay con `style.left/top`). Sin optimización aplicada per Karpathy.
 - _(Post-P1)_ Perfiles locales (81 asserts). IndexedDB schema bump v1→v2: nuevo almacén `profiles` (`{id, name, pinHash, createdAt, isGuest?}`) + índice `profileId` en `games`. Migración auto-crea perfil "Invitado" y asigna las partidas legacy. **PIN obligatorio de 4 dígitos en la creación** (con campo de confirmación para evitar tipearlo mal), hasheado con SHA-256 vía `crypto.subtle.digest`. Bloqueo de 30s tras 3 intentos fallidos (estado en memoria). Pantalla a pantalla completa al cargar bloquea el juego hasta elegir o crear perfil; el PIN se vuelve a pedir en cada arranque (sin sesión persistente). Botón `👤 nombre` en la barra de controles abre menú con editar/cambiar perfil/borrar. `buildGameRecord` asigna `profileId` y usa nombre del perfil en `white`/`black` para 1p y LAN. `lanOnDCOpen` envía el nombre del perfil en el `hello`. La creación rechaza con mensaje explicativo si el contexto no es seguro (HTTP sobre IP de LAN cruda → no hay Web Crypto disponible); funciona con HTTPS, `localhost`, o `file://`.
 - _(Post-P1)_ Colección "♛ Partidas Célebres" (Clásicas): 123 partidas inmortales de la historia (1820–2006: el Inmortal de Anderssen, la Siempreviva, la Opera Game de Morphy, la Partida del Siglo de Fischer, el Inmortal de Kasparov, Rotlewi–Rubinstein, Steinitz–von Bardeleben, etc.). Embebidas como movetext SAN compacto (~44 KB) en `CLASSIC_GAMES` y expandidas con `pgnToGameRecord` al abrir cada una (parseo perezoso). Las partidas fueron verificadas jugada por jugada contra el motor (round-trip 123/123 tras retirar una transcripción duplicada de la Inmortal). Botón "♛ Clásicas" abre un modal con buscador (por jugador/evento/año) y tabla; "👁 Ver" abre la partida en el visor de estudio vía `viewGameRecord`. Colección de **solo lectura**: no se guardan en IndexedDB ni dependen del perfil activo. Movimientos tomados de colecciones públicas de _immortal games_ (las jugadas de ajedrez son hechos, sin copyright).
-- _(Post-P1)_ Narración dramática de Clásicas (108 de 123 partidas con guión, en progreso por lotes). Botón "🔊 Narrar" en el visor de estudio (solo aparece si la partida tiene guión). Usa el lector de voz integrado del navegador (Web Speech API / `speechSynthesis`) — **100% offline, cero dependencias y cero archivos de audio**: el guión es texto embebido en `CLASSIC_NARRATION` (con clave `narrationKey`, un hash de las jugadas) y la voz la pone el sistema del usuario. `pickSpanishVoice()` prefiere una voz **local** en español (es-MX > es-US/es-419 > es-\*) para garantizar que no haya tráfico de red. La reproducción narrada arranca en la posición inicial y avanza **jugada por jugada**, una pieza a la vez con un deslizamiento suave (clon flotante que reutiliza el estilo `.drag-overlay` del arrastre); se detiene a narrar en los plies con guión —las piezas quedan inmóviles mientras habla la voz— y reanuda al terminar, hasta el final de la partida (`advanceNarration` + `narrateAtPly` + `animateReplayMove`). El ritmo de las jugadas en silencio se mantiene ágil (~490 ms/jugada) y los guiones intercalan líneas puente en los huecos largos, de modo que ningún silencio entre narraciones supere ~3.5 s. Ritmo (`rate`) más lento en los momentos clímax (sacrificios de alfil y de dama). Si el usuario navega manualmente, la narración se detiene sola (guard en `replayGoto` con la bandera `narrationDriving`); también se detiene al salir del visor. Los guiones se escriben por lotes para toda la colección (anclados a las jugadas reales, con `rate` más lento en los clímax) y se van quedando listos para una voz premium futura. La clave `narrationKey` es un hash de las jugadas (evita colisiones entre partidas con mismos jugadores/año). En la lista, las partidas con guión muestran 🔊.
+- _(Post-P1)_ Narración dramática de Clásicas (las 123 partidas con guión completo). Botón "🔊 Narrar" en el visor de estudio (solo aparece si la partida tiene guión). Usa el lector de voz integrado del navegador (Web Speech API / `speechSynthesis`) — **100% offline, cero dependencias y cero archivos de audio**: el guión es texto embebido en `CLASSIC_NARRATION` (con clave `narrationKey`, un hash de las jugadas) y la voz la pone el sistema del usuario. `pickSpanishVoice()` prefiere una voz **local** en español (es-MX > es-US/es-419 > es-\*) para garantizar que no haya tráfico de red. La reproducción narrada arranca en la posición inicial y avanza **jugada por jugada**, una pieza a la vez con un deslizamiento suave (clon flotante que reutiliza el estilo `.drag-overlay` del arrastre); se detiene a narrar en los plies con guión —las piezas quedan inmóviles mientras habla la voz— y reanuda al terminar, hasta el final de la partida (`advanceNarration` + `narrateAtPly` + `animateReplayMove`). El ritmo de las jugadas en silencio se mantiene ágil (~490 ms/jugada) y los guiones intercalan líneas puente en los huecos largos, de modo que ningún silencio entre narraciones supere ~3.5 s. Ritmo (`rate`) más lento en los momentos clímax (sacrificios de alfil y de dama). Si el usuario navega manualmente, la narración se detiene sola (guard en `replayGoto` con la bandera `narrationDriving`); también se detiene al salir del visor. Los guiones se escriben por lotes para toda la colección (anclados a las jugadas reales, con `rate` más lento en los clímax) y se van quedando listos para una voz premium futura. La clave `narrationKey` es un hash de las jugadas (evita colisiones entre partidas con mismos jugadores/año). En la lista, las partidas con guión muestran 🔊.
 
 ---
 
@@ -7612,6 +7612,279 @@ CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[107])] = { // #107 Milov vs Topalov
     { ply: 70, rate: 0.86, text: 'Las piezas negras dominan el tablero; Milov se defiende sin esperanza.' },
     { ply: 77, rate: 0.86, text: 'Topalov fuerza los cambios decisivos hacia un final ganado.' },
     { ply: 82, rate: 0.85, text: 'Torre toma f1, jaque, y la partida está decidida. Topalov, dinamismo triunfante.' },
+  ]
+};
+
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[108])] = { // #108 Topalov vs Bareev, 2002
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Dortmund, 2002. Topalov, con las blancas, frente a Bareev, en un Caro-Kann afilado donde el búlgaro lanza un ataque temprano.' },
+    { ply: 7,  rate: 0.96, text: 'Avance en el Caro-Kann: Topalov gana espacio y empuja sus peones del flanco rey desde la apertura.' },
+    { ply: 14, rate: 0.95, text: 'Los peones blancos avanzan como una ola; Bareev maniobra para frenar la marea.' },
+    { ply: 21, rate: 0.93, text: 'El centro se abre con cambios; ambos buscan actividad para sus piezas.' },
+    { ply: 28, rate: 0.91, text: 'Topalov cambia y se queda con una ventaja de espacio e iniciativa.' },
+    { ply: 35, rate: 0.9,  text: 'Ambos enrocan en flancos opuestos; las torres se preparan para el asalto.' },
+    { ply: 42, rate: 0.89, text: 'Estallan los cambios; Topalov gana material en las complicaciones.' },
+    { ply: 49, rate: 0.88, text: 'Se cambian damas; el búlgaro entra en un final con ventaja clara.' },
+    { ply: 56, rate: 0.88, text: 'Los alfiles maniobran; Topalov presiona los peones débiles del campo negro.' },
+    { ply: 63, rate: 0.87, text: 'Topalov gana terreno con su técnica; Bareev defiende con dificultad.' },
+    { ply: 70, rate: 0.86, text: 'Las piezas blancas dominan; el cerco se estrecha en el final.' },
+    { ply: 75, rate: 0.85, text: 'Topalov afina la maniobra final; la posición negra ya no se sostiene.' },
+    { ply: 79, rate: 0.85, text: 'El caballo blanco sentencia. Topalov se impone con autoridad.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[109])] = { // #109 Topalov vs Bareev, 2002 (playoff)
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'El desempate. Topalov, con las blancas otra vez, busca el golpe decisivo frente a Bareev.' },
+    { ply: 7,  rate: 0.96, text: 'Defensa Francesa: cambios tempranos y desarrollo rápido hacia una lucha abierta.' },
+    { ply: 14, rate: 0.95, text: 'Topalov empuja en el flanco rey y plantea complicaciones de inmediato.' },
+    { ply: 21, rate: 0.92, text: 'El centro se abre; las piezas blancas ganan actividad y presionan al rey negro.' },
+    { ply: 28, rate: 0.9,  text: 'Topalov cambia piezas y mantiene la iniciativa con su juego directo.' },
+    { ply: 35, rate: 0.89, text: 'Enroca largo y dirige sus torres hacia el rey negro, que aún busca refugio.' },
+    { ply: 42, rate: 0.88, text: 'Topalov sacrifica para abrir las últimas líneas hacia el rey enemigo.' },
+    { ply: 48, rate: 0.86, text: 'Las piezas blancas invaden; Bareev no logra coordinar la defensa.' },
+    { ply: 53, rate: 0.85, text: 'La red se cierra. Topalov gana el desempate y avanza con paso firme.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[110])] = { // #110 Anand vs Ivanchuk, 2002 (maratón)
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Eurotel Trophy, 2002. Anand, con las blancas, frente a Ivanchuk, en una batalla que se prolongará más de sesenta jugadas.' },
+    { ply: 7,  rate: 0.96, text: 'Defensa Siciliana Najdorf: planteo teórico afilado donde Anand domina cada matiz.' },
+    { ply: 14, rate: 0.95, text: 'Anand enroca largo; ambos preparan ataques en flancos opuestos.' },
+    { ply: 21, rate: 0.94, text: 'Las piezas maniobran; Anand busca el momento de la ruptura en el centro.' },
+    { ply: 28, rate: 0.93, text: 'Cambios de piezas; Anand se queda con una pequeña pero persistente ventaja.' },
+    { ply: 35, rate: 0.92, text: 'Las damas entran en juego; la tensión se concentra en el centro del tablero.' },
+    { ply: 42, rate: 0.9,  text: 'Se cambian damas; la partida deriva a un final donde Anand maniobra con maestría.' },
+    { ply: 49, rate: 0.9,  text: 'Anand avanza sus peones del flanco rey, ganando espacio en el final.' },
+    { ply: 56, rate: 0.9,  text: 'Quedan torres y alfiles; Anand presiona los peones débiles del campo negro.' },
+    { ply: 63, rate: 0.9,  text: 'Anand crea un peón pasado y empieza a empujarlo hacia la coronación.' },
+    { ply: 70, rate: 0.9,  text: 'Los reyes marchan; Anand maniobra con la técnica de un campeón mundial.' },
+    { ply: 77, rate: 0.89, text: 'El peón pasado avanza; Ivanchuk se defiende en un final cada vez más difícil.' },
+    { ply: 84, rate: 0.89, text: 'Anand reorganiza sus piezas para escoltar al peón a la coronación.' },
+    { ply: 91, rate: 0.89, text: 'La presión es total; la defensa negra se estira al límite.' },
+    { ply: 98, rate: 0.88, text: 'Anand maniobra los alfiles con precisión; el peón pasado decide.' },
+    { ply: 105, rate: 0.87, text: '¡El peón corona en dama! Anand consigue una nueva pieza decisiva.' },
+    { ply: 112, rate: 0.86, text: 'Con material de sobra, Anand encamina la partida al triunfo.' },
+    { ply: 118, rate: 0.86, text: 'El indio recoge los últimos peones; Ivanchuk ya no puede resistir.' },
+    { ply: 125, rate: 0.85, text: 'Anand convierte tras una maratón agotadora. Técnica de campeón hasta el final.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[111])] = { // #111 Anand vs Karpov, 2002 (maratón)
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Eurotel Trophy, 2002. Anand, con las blancas, frente a la leyenda Anatoly Karpov, en un duelo generacional.' },
+    { ply: 7,  rate: 0.96, text: 'Apertura Rusa: planteo simétrico y sólido, donde cada matiz pesa toneladas.' },
+    { ply: 14, rate: 0.95, text: 'Las piezas se despliegan; Anand gana un poco de espacio en el centro.' },
+    { ply: 21, rate: 0.94, text: 'Ambos enrocan; cambios de piezas que perfilan la estructura del final.' },
+    { ply: 28, rate: 0.93, text: 'Cambios de torres; Anand se queda con una pequeña ventaja de actividad.' },
+    { ply: 35, rate: 0.92, text: 'Se cambian damas; la partida entra en un final de piezas menores y peones.' },
+    { ply: 42, rate: 0.91, text: 'Anand maniobra sus caballos y alfiles buscando dominar las casillas clave.' },
+    { ply: 49, rate: 0.91, text: 'El indio avanza sus peones del flanco rey, ganando terreno con paciencia.' },
+    { ply: 56, rate: 0.91, text: 'Karpov defiende con su técnica legendaria; Anand sigue apretando.' },
+    { ply: 63, rate: 0.9,  text: 'Cambios de piezas menores; el final se vuelve milimétrico.' },
+    { ply: 70, rate: 0.9,  text: 'Anand crea debilidades y las explota con su precisión característica.' },
+    { ply: 77, rate: 0.89, text: 'Los reyes salen al centro; cada tiempo y cada peón cuentan.' },
+    { ply: 84, rate: 0.89, text: 'Anand maniobra el caballo hacia los peones débiles del campo negro.' },
+    { ply: 91, rate: 0.88, text: 'El indio gana peones; su ventaja material crece poco a poco.' },
+    { ply: 98, rate: 0.88, text: 'Anand empuja sus peones pasados; Karpov se defiende sin esperanza.' },
+    { ply: 105, rate: 0.87, text: 'Los peones blancos avanzan imparables hacia la coronación.' },
+    { ply: 112, rate: 0.86, text: 'Anand escolta a sus peones al octavo escalón; la victoria está cerca.' },
+    { ply: 117, rate: 0.85, text: 'El peón corona y la partida está ganada. Anand supera a la leyenda Karpov.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[112])] = { // #112 Kramnik vs Hracek, 2002
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Eurotel Trophy, 2002. Vladimir Kramnik, con las blancas, ofrece una demostración de su solidez granítica.' },
+    { ply: 7,  rate: 0.96, text: 'Defensa India de Dama: fianchettos y lucha sutil por el centro a distancia.' },
+    { ply: 14, rate: 0.95, text: 'Ambos enrocan; Kramnik maniobra sus piezas con su precisión característica.' },
+    { ply: 21, rate: 0.94, text: 'Cambios en el centro; Kramnik se queda con una ventaja de espacio y estructura.' },
+    { ply: 28, rate: 0.92, text: 'El ruso avanza sus peones centrales, ganando terreno frente a Hracek.' },
+    { ply: 35, rate: 0.9,  text: 'Kramnik abre líneas hacia el rey negro con un avance de peón decidido.' },
+    { ply: 42, rate: 0.89, text: 'Las piezas blancas penetran; Hracek se ve forzado a la defensa.' },
+    { ply: 49, rate: 0.88, text: 'Kramnik empuja el peón f y resquebraja el enroque negro.' },
+    { ply: 56, rate: 0.88, text: 'Se cambian damas; Kramnik entra en un final con ventaja decisiva.' },
+    { ply: 63, rate: 0.87, text: 'Los alfiles y caballos blancos dominan; Hracek defiende un final perdido.' },
+    { ply: 70, rate: 0.86, text: 'Kramnik gana material y estrecha el cerco con técnica perfecta.' },
+    { ply: 75, rate: 0.85, text: 'Las piezas blancas dominan; Hracek ya no halla defensa.' },
+    { ply: 79, rate: 0.85, text: 'Alfil h5 y la partida está sentenciada. Kramnik, solidez de hierro.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[113])] = { // #113 Jobava vs Bareev, 2003
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Copa de Clubes Europea, 2003. El creativo Baadur Jobava, con las blancas, frente a Bareev, en un Caro-Kann lleno de chispa.' },
+    { ply: 7,  rate: 0.96, text: 'Variante clásica del Caro-Kann: desarrollo natural y avance de peones en el flanco rey.' },
+    { ply: 14, rate: 0.95, text: 'Las piezas se despliegan; Jobava enroca largo y mira hacia el rey negro.' },
+    { ply: 21, rate: 0.92, text: 'Jobava rompe en el centro y abre líneas hacia el monarca enemigo.' },
+    { ply: 28, rate: 0.89, text: '¡Sacrificio sobre h6! Jobava demuele el enroque negro para desatar el ataque.' },
+    { ply: 35, rate: 0.88, text: 'Los caballos blancos saltan al asalto; el rey negro queda al descubierto.' },
+    { ply: 42, rate: 0.87, text: 'Bareev contraataca con sacrificios desesperados; el tablero es un volcán.' },
+    { ply: 48, rate: 0.87, text: 'El rey blanco también corre peligro, pero Jobava calcula el caos mejor.' },
+    { ply: 54, rate: 0.86, text: 'Jobava esquiva los jaques y mantiene la ventaja material en plena tormenta.' },
+    { ply: 60, rate: 0.85, text: 'El humo se disipa; Jobava emerge con ventaja decisiva.' },
+    { ply: 67, rate: 0.85, text: 'Jobava sentencia tras un cuerpo a cuerpo salvaje. Creatividad triunfante.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[114])] = { // #114 Kharlov vs Topalov, 2004 (maratón)
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Campeonato del Mundo FIDE, 2004. Topalov, con las negras, libra una larga batalla frente a Kharlov.' },
+    { ply: 7,  rate: 0.96, text: 'Apertura Italiana tranquila; planteo posicional que se cuece a fuego lento.' },
+    { ply: 14, rate: 0.95, text: 'Ambos enrocan; las piezas maniobran en busca de los mejores puestos.' },
+    { ply: 21, rate: 0.94, text: 'El centro se abre con cambios; Topalov busca actividad para sus piezas.' },
+    { ply: 28, rate: 0.93, text: 'Topalov gana espacio en el flanco de dama y prepara su contrajuego.' },
+    { ply: 35, rate: 0.91, text: 'La tensión crece; ambos preparan rupturas en el centro y los flancos.' },
+    { ply: 42, rate: 0.89, text: 'Estallan los cambios; Topalov toma la iniciativa con sus piezas activas.' },
+    { ply: 49, rate: 0.88, text: 'El búlgaro presiona el campo blanco; Kharlov pasa a la defensiva.' },
+    { ply: 56, rate: 0.88, text: 'Topalov gana material en las complicaciones y aprieta sin descanso.' },
+    { ply: 63, rate: 0.88, text: 'Se cambian piezas; Topalov entra en un final con ventaja clara.' },
+    { ply: 70, rate: 0.87, text: 'Las piezas negras dominan; Topalov empuja sus peones pasados.' },
+    { ply: 77, rate: 0.86, text: 'El búlgaro estrecha el cerco; Kharlov defiende un final cada vez peor.' },
+    { ply: 84, rate: 0.85, text: 'Topalov avanza implacable; la posición blanca se desmorona.' },
+    { ply: 90, rate: 0.85, text: 'Las piezas negras invaden; el rey blanco queda expuesto.' },
+    { ply: 97, rate: 0.85, text: 'Topalov teje la red final con sus piezas y peones coordinados.' },
+    { ply: 102, rate: 0.85, text: 'El cerco se cierra; el rey blanco se queda sin escapatoria.' },
+    { ply: 106, rate: 0.85, text: 'Alfil d3, jaque, y la partida está decidida. Topalov se impone tras la maratón.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[115])] = { // #115 Carlsen vs Ernst, 2004 (Magnus a los 13)
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Wijk aan Zee, 2004. Un Magnus Carlsen de apenas trece años, con las blancas, ofrece una demolición de manual que dará la vuelta al mundo.' },
+    { ply: 7,  rate: 0.96, text: 'Variante clásica del Caro-Kann; Carlsen desarrolla con la naturalidad de un veterano.' },
+    { ply: 14, rate: 0.95, text: 'El joven empuja sus peones del flanco rey y coloca sus piezas apuntando al rey negro.' },
+    { ply: 21, rate: 0.93, text: 'Carlsen completa el desarrollo; cada pieza mira hacia el enroque enemigo.' },
+    { ply: 28, rate: 0.92, text: 'Ambos enrocan; el niño prodigio ya tiene a todas sus piezas listas para el asalto.' },
+    { ply: 35, rate: 0.88, text: 'Carlsen sacrifica un caballo en g6: ¡comienza la demolición del enroque negro!' },
+    { ply: 37, rate: 0.86, text: '¡Dama toma e6, jaque! El rey negro empieza a quedarse sin escudo.' },
+    { ply: 41, rate: 0.84, text: '¡Alfil toma h6! Otro sacrificio: Carlsen abre por completo la posición del rey.' },
+    { ply: 43, rate: 0.84, text: '¡Torre toma h6, jaque! El niño entrega torre para arrastrar al rey a la red.' },
+    { ply: 49, rate: 0.85, text: 'Las piezas blancas convergen; el rey negro vaga sin un solo defensor.' },
+    { ply: 53, rate: 0.84, text: 'Carlsen teje el mate con precisión asombrosa para su edad.' },
+    { ply: 57, rate: 0.84, text: '¡Dama d7! Jaque mate. Un niño de trece años acaba de jugar una partida perfecta. El futuro campeón del mundo se anuncia al planeta.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[116])] = { // #116 Kramnik vs Anand, 2004 (tablas)
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Kramnik, con las blancas, frente a Anand: dos campeones del mundo midiéndose al máximo nivel.' },
+    { ply: 7,  rate: 0.96, text: 'Defensa Siciliana Najdorf: planteo teórico de altísimo voltaje.' },
+    { ply: 14, rate: 0.95, text: 'Ambos enrocan en flancos opuestos; se anuncia una carrera de ataques.' },
+    { ply: 21, rate: 0.93, text: 'Anand captura un peón arriesgado; Kramnik obtiene iniciativa a cambio.' },
+    { ply: 28, rate: 0.91, text: 'Kramnik empuja sus peones hacia el rey negro, buscando compensación por el material.' },
+    { ply: 35, rate: 0.9,  text: 'La tensión es máxima; ambos calculan al filo de la navaja.' },
+    { ply: 42, rate: 0.89, text: 'Estallan los cambios; la posición se aclara hacia un equilibrio dinámico.' },
+    { ply: 49, rate: 0.86, text: 'Tras una lucha intensa, los campeones firman tablas. Un empate de altura.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[117])] = { // #117 Kozul vs Rublevsky, 2004 (maratón)
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Campeonato del Mundo FIDE, 2004. Zdenko Kozul, con las blancas, frente a Rublevsky, en una larga batalla posicional.' },
+    { ply: 7,  rate: 0.96, text: 'Defensa Eslava: planteo sólido donde cada bando construye su plan con cuidado.' },
+    { ply: 14, rate: 0.95, text: 'Kozul gana espacio con c5 y maniobra sus piezas hacia el flanco de dama.' },
+    { ply: 21, rate: 0.94, text: 'Las piezas se reorganizan; la tensión se acumula en el centro.' },
+    { ply: 28, rate: 0.92, text: 'Estallan las complicaciones; Kozul abre líneas hacia el campo negro.' },
+    { ply: 35, rate: 0.9,  text: 'Cambios de piezas; Kozul se queda con la iniciativa y mejor estructura.' },
+    { ply: 42, rate: 0.89, text: 'Kozul avanza sus peones centrales, ganando terreno y actividad.' },
+    { ply: 49, rate: 0.89, text: 'El blanco empuja el peón f y abre el juego hacia el rey negro.' },
+    { ply: 56, rate: 0.88, text: 'Las piezas blancas penetran; Rublevsky se defiende con dificultad.' },
+    { ply: 63, rate: 0.88, text: 'Kozul gana material y consolida una ventaja decisiva.' },
+    { ply: 70, rate: 0.87, text: 'Los peones pasados blancos avanzan, escoltados por las piezas.' },
+    { ply: 77, rate: 0.86, text: 'Kozul maniobra hacia el desenlace; Rublevsky resiste lo inevitable.' },
+    { ply: 84, rate: 0.85, text: 'Los peones blancos coronan; la partida está prácticamente ganada.' },
+    { ply: 89, rate: 0.85, text: 'Kozul escolta a su peón a la coronación; Rublevsky no puede frenarlo.' },
+    { ply: 93, rate: 0.85, text: 'Kozul sentencia con su dama recién coronada. Una victoria de larga elaboración.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[118])] = { // #118 Landa vs Shaposhnikov, 2005
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Liga rusa, 2005. Konstantin Landa, con las blancas, ofrece un ataque modélico en el Caro-Kann clásico.' },
+    { ply: 7,  rate: 0.96, text: 'Variante clásica del Caro-Kann: desarrollo natural y avance de peones en el flanco rey.' },
+    { ply: 14, rate: 0.95, text: 'Las piezas se despliegan; Landa coloca sus fuerzas apuntando al rey negro.' },
+    { ply: 21, rate: 0.93, text: 'La dama negra parte de paseo por el flanco de dama, lejos del verdadero combate.' },
+    { ply: 28, rate: 0.91, text: 'Landa gana espacio en ambos flancos y prepara el asalto al enroque negro.' },
+    { ply: 35, rate: 0.88, text: '¡Caballo f5! Landa planta la pieza en el corazón del enroque y desata el ataque.' },
+    { ply: 41, rate: 0.86, text: '¡Sacrificios sobre g7 y e6! Landa demuele las defensas del rey negro.' },
+    { ply: 47, rate: 0.85, text: '¡Dama g6, jaque! La red se cierra y la partida está ganada. Ataque de manual.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[119])] = { // #119 Adams vs Kasparov, 2005
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Linares, 2005. Michael Adams, con las blancas, frente a Kasparov, en uno de los últimos torneos del campeón antes de su retiro.' },
+    { ply: 7,  rate: 0.96, text: 'Defensa Siciliana Najdorf: el arma favorita de Kasparov, afilada como una navaja.' },
+    { ply: 14, rate: 0.95, text: 'Kasparov enroca largo; ambos preparan ataques en flancos opuestos.' },
+    { ply: 21, rate: 0.93, text: 'Kasparov avanza sus peones del flanco de dama hacia el rey blanco.' },
+    { ply: 28, rate: 0.91, text: 'Adams empuja en el flanco rey; la carrera de ataques está en marcha.' },
+    { ply: 35, rate: 0.89, text: 'Kasparov abre líneas hacia el rey blanco con su energía característica.' },
+    { ply: 42, rate: 0.87, text: 'El campeón sacrifica para acelerar el ataque; sus piezas invaden el campo blanco.' },
+    { ply: 48, rate: 0.86, text: 'Las piezas negras rodean al rey de Adams; el cerco se cierra.' },
+    { ply: 52, rate: 0.85, text: 'Dama a3 y la red es total. Kasparov gana con su ataque imparable de siempre.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[120])] = { // #120 Anand vs Topalov, 2005 (tablas, maratón)
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Mtel Masters, 2005. Anand, con las blancas, frente a Topalov, en una batalla épica que se resolverá en tablas tras infinitas peripecias.' },
+    { ply: 7,  rate: 0.96, text: 'Defensa Siciliana Najdorf: planteo de máxima lucha, sin concesiones.' },
+    { ply: 14, rate: 0.95, text: 'Anand enroca largo; ambos lanzan sus peones contra el rey enemigo.' },
+    { ply: 21, rate: 0.93, text: 'El centro estalla; sacrificios cruzados y complicaciones de vértigo.' },
+    { ply: 28, rate: 0.91, text: 'Ambos reyes quedan al aire en un cuerpo a cuerpo feroz.' },
+    { ply: 35, rate: 0.9,  text: 'Se cambian damas en pleno fuego; la partida deriva a un final tenso.' },
+    { ply: 42, rate: 0.9,  text: 'Quedan torres y piezas menores; cada bando busca su oportunidad.' },
+    { ply: 49, rate: 0.9,  text: 'Anand empuja sus peones pasados; Topalov contraataca con los suyos.' },
+    { ply: 56, rate: 0.9,  text: 'Las torres bailan alrededor de los peones; el equilibrio es frágil.' },
+    { ply: 63, rate: 0.89, text: 'Ambos avanzan sus peones en una carrera hacia la coronación.' },
+    { ply: 70, rate: 0.89, text: 'Los reyes se exponen; la posición está al filo en cada jugada.' },
+    { ply: 77, rate: 0.89, text: 'Anand y Topalov calculan al límite; ninguno cede un milímetro.' },
+    { ply: 84, rate: 0.88, text: 'Las complicaciones se renuevan; los peones pasados marchan por ambos bandos.' },
+    { ply: 91, rate: 0.88, text: 'Caen piezas en el torbellino; el equilibrio sobrevive milagrosamente.' },
+    { ply: 98, rate: 0.88, text: 'Ambos peones coronan damas; la lucha alcanza un clímax surreal.' },
+    { ply: 105, rate: 0.87, text: 'Con damas en el tablero, los jaques cruzados no dan tregua.' },
+    { ply: 112, rate: 0.87, text: 'Las damas se persiguen; ninguno logra forzar la decisión.' },
+    { ply: 116, rate: 0.86, text: 'Los jaques se suceden sin fin; el rey no halla escape ni la dama, mate.' },
+    { ply: 120, rate: 0.86, text: 'Tablas por jaque perpetuo. Una batalla colosal que ninguno mereció perder.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[121])] = { // #121 Karjakin vs Anand, 2006
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Wijk aan Zee, 2006. Un jovencísimo Sergey Karjakin, con las blancas... pero hoy será Anand, con las negras, quien dé la lección.' },
+    { ply: 7,  rate: 0.96, text: 'Defensa Siciliana Najdorf: Anand elige su terreno de máxima confianza.' },
+    { ply: 14, rate: 0.95, text: 'Karjakin enroca largo; ambos preparan ataques en flancos opuestos.' },
+    { ply: 21, rate: 0.93, text: 'Anand avanza sus peones del flanco de dama hacia el rey blanco.' },
+    { ply: 28, rate: 0.91, text: 'Karjakin empuja en el flanco rey; la carrera de ataques se acelera.' },
+    { ply: 35, rate: 0.89, text: 'Anand sacrifica para abrir las líneas hacia el rey blanco; el caos estalla.' },
+    { ply: 42, rate: 0.87, text: 'Las piezas negras invaden el campo blanco; Karjakin se defiende a la desesperada.' },
+    { ply: 49, rate: 0.86, text: 'Anand recoge material y persigue al rey enemigo sin tregua.' },
+    { ply: 56, rate: 0.86, text: 'Karjakin intenta su propio ataque con un peón en la séptima, pero Anand llega antes.' },
+    { ply: 63, rate: 0.86, text: 'Anand neutraliza la última amenaza y lanza el contraataque definitivo.' },
+    { ply: 70, rate: 0.85, text: 'La dama negra acosa al rey blanco con jaques; la red está cerrada.' },
+    { ply: 74, rate: 0.85, text: 'Dama c4, jaque, y la partida está ganada. Anand supera al joven prodigio.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[122])] = { // #122 Topalov vs Aronian, 2006 (última de la colección)
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Wijk aan Zee, 2006. Topalov, con las blancas, frente a Aronian: el broche de oro de nuestra colección de partidas inmortales.' },
+    { ply: 7,  rate: 0.96, text: 'Defensa India de Dama: fianchettos y lucha estratégica por las casillas centrales.' },
+    { ply: 14, rate: 0.95, text: 'Ambos enrocan; Topalov maniobra sus caballos hacia el centro del tablero.' },
+    { ply: 21, rate: 0.94, text: 'El centro se abre con e4; Topalov gana espacio y actividad para sus piezas.' },
+    { ply: 28, rate: 0.91, text: '¡Sacrificio de calidad! Topalov entrega torre por caballo para dominar el centro.' },
+    { ply: 35, rate: 0.89, text: 'Las piezas blancas dominan las casillas clave; Aronian busca contrajuego.' },
+    { ply: 42, rate: 0.88, text: 'Topalov empuja sus peones centrales, convertidos en una falange amenazante.' },
+    { ply: 49, rate: 0.87, text: 'Los peones pasados blancos avanzan; Aronian se defiende contra la marea.' },
+    { ply: 56, rate: 0.87, text: 'Topalov cambia damas y entra en un final donde sus peones son decisivos.' },
+    { ply: 63, rate: 0.87, text: 'Los peones c y d avanzan escoltados; la presión es asfixiante.' },
+    { ply: 70, rate: 0.86, text: 'Topalov empuja hacia la coronación; Aronian intenta frenar lo imparable.' },
+    { ply: 77, rate: 0.86, text: 'Las piezas blancas escoltan a los peones pasados hacia el octavo escalón.' },
+    { ply: 83, rate: 0.85, text: 'Aronian resiste, pero los peones blancos están a un paso de coronar.' },
+    { ply: 87, rate: 0.85, text: 'Topalov sentencia. Y con esta joya cerramos las 123 partidas inmortales de la historia.' },
   ]
 };
 

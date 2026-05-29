@@ -1603,7 +1603,7 @@ Documento de referencia para usuarios y desarrolladores. Se actualiza incrementa
 - _(Fase 9)_ Performance audit de `renderBoard` (13 asserts): mean 0.55ms / p50 0.30ms en node con DOM mockeado. Browser estimado 3-7ms incluyendo layout+paint. Margen vs 60fps (16.67ms): >2×. Confirmado que `pointermove` NO llama `renderBoard` (drag mueve overlay con `style.left/top`). Sin optimización aplicada per Karpathy.
 - _(Post-P1)_ Perfiles locales (81 asserts). IndexedDB schema bump v1→v2: nuevo almacén `profiles` (`{id, name, pinHash, createdAt, isGuest?}`) + índice `profileId` en `games`. Migración auto-crea perfil "Invitado" y asigna las partidas legacy. **PIN obligatorio de 4 dígitos en la creación** (con campo de confirmación para evitar tipearlo mal), hasheado con SHA-256 vía `crypto.subtle.digest`. Bloqueo de 30s tras 3 intentos fallidos (estado en memoria). Pantalla a pantalla completa al cargar bloquea el juego hasta elegir o crear perfil; el PIN se vuelve a pedir en cada arranque (sin sesión persistente). Botón `👤 nombre` en la barra de controles abre menú con editar/cambiar perfil/borrar. `buildGameRecord` asigna `profileId` y usa nombre del perfil en `white`/`black` para 1p y LAN. `lanOnDCOpen` envía el nombre del perfil en el `hello`. La creación rechaza con mensaje explicativo si el contexto no es seguro (HTTP sobre IP de LAN cruda → no hay Web Crypto disponible); funciona con HTTPS, `localhost`, o `file://`.
 - _(Post-P1)_ Colección "♛ Partidas Célebres" (Clásicas): 123 partidas inmortales de la historia (1820–2006: el Inmortal de Anderssen, la Siempreviva, la Opera Game de Morphy, la Partida del Siglo de Fischer, el Inmortal de Kasparov, Rotlewi–Rubinstein, Steinitz–von Bardeleben, etc.). Embebidas como movetext SAN compacto (~44 KB) en `CLASSIC_GAMES` y expandidas con `pgnToGameRecord` al abrir cada una (parseo perezoso). Las partidas fueron verificadas jugada por jugada contra el motor (round-trip 123/123 tras retirar una transcripción duplicada de la Inmortal). Botón "♛ Clásicas" abre un modal con buscador (por jugador/evento/año) y tabla; "👁 Ver" abre la partida en el visor de estudio vía `viewGameRecord`. Colección de **solo lectura**: no se guardan en IndexedDB ni dependen del perfil activo. Movimientos tomados de colecciones públicas de _immortal games_ (las jugadas de ajedrez son hechos, sin copyright).
-- _(Post-P1)_ Narración dramática de Clásicas (60 de 123 partidas con guión, en progreso por lotes). Botón "🔊 Narrar" en el visor de estudio (solo aparece si la partida tiene guión). Usa el lector de voz integrado del navegador (Web Speech API / `speechSynthesis`) — **100% offline, cero dependencias y cero archivos de audio**: el guión es texto embebido en `CLASSIC_NARRATION` (con clave `narrationKey`, un hash de las jugadas) y la voz la pone el sistema del usuario. `pickSpanishVoice()` prefiere una voz **local** en español (es-MX > es-US/es-419 > es-\*) para garantizar que no haya tráfico de red. La reproducción narrada arranca en la posición inicial y avanza **jugada por jugada**, una pieza a la vez con un deslizamiento suave (clon flotante que reutiliza el estilo `.drag-overlay` del arrastre); se detiene a narrar en los plies con guión —las piezas quedan inmóviles mientras habla la voz— y reanuda al terminar, hasta el final de la partida (`advanceNarration` + `narrateAtPly` + `animateReplayMove`). El ritmo de las jugadas en silencio se mantiene ágil (~490 ms/jugada) y los guiones intercalan líneas puente en los huecos largos, de modo que ningún silencio entre narraciones supere ~3.5 s. Ritmo (`rate`) más lento en los momentos clímax (sacrificios de alfil y de dama). Si el usuario navega manualmente, la narración se detiene sola (guard en `replayGoto` con la bandera `narrationDriving`); también se detiene al salir del visor. Los guiones se escriben por lotes para toda la colección (anclados a las jugadas reales, con `rate` más lento en los clímax) y se van quedando listos para una voz premium futura. La clave `narrationKey` es un hash de las jugadas (evita colisiones entre partidas con mismos jugadores/año). En la lista, las partidas con guión muestran 🔊.
+- _(Post-P1)_ Narración dramática de Clásicas (84 de 123 partidas con guión, en progreso por lotes). Botón "🔊 Narrar" en el visor de estudio (solo aparece si la partida tiene guión). Usa el lector de voz integrado del navegador (Web Speech API / `speechSynthesis`) — **100% offline, cero dependencias y cero archivos de audio**: el guión es texto embebido en `CLASSIC_NARRATION` (con clave `narrationKey`, un hash de las jugadas) y la voz la pone el sistema del usuario. `pickSpanishVoice()` prefiere una voz **local** en español (es-MX > es-US/es-419 > es-\*) para garantizar que no haya tráfico de red. La reproducción narrada arranca en la posición inicial y avanza **jugada por jugada**, una pieza a la vez con un deslizamiento suave (clon flotante que reutiliza el estilo `.drag-overlay` del arrastre); se detiene a narrar en los plies con guión —las piezas quedan inmóviles mientras habla la voz— y reanuda al terminar, hasta el final de la partida (`advanceNarration` + `narrateAtPly` + `animateReplayMove`). El ritmo de las jugadas en silencio se mantiene ágil (~490 ms/jugada) y los guiones intercalan líneas puente en los huecos largos, de modo que ningún silencio entre narraciones supere ~3.5 s. Ritmo (`rate`) más lento en los momentos clímax (sacrificios de alfil y de dama). Si el usuario navega manualmente, la narración se detiene sola (guard en `replayGoto` con la bandera `narrationDriving`); también se detiene al salir del visor. Los guiones se escriben por lotes para toda la colección (anclados a las jugadas reales, con `rate` más lento en los clímax) y se van quedando listos para una voz premium futura. La clave `narrationKey` es un hash de las jugadas (evita colisiones entre partidas con mismos jugadores/año). En la lista, las partidas con guión muestran 🔊.
 
 ---
 
@@ -6759,6 +6759,396 @@ CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[59])] = { // #59 Averbakh vs Tal, 1
     { ply: 56, rate: 0.89, text: 'La dama y las torres negras penetran; el rey blanco empieza a sentir el peligro.' },
     { ply: 63, rate: 0.88, text: 'Tal teje la red final con su energía característica; Averbakh ya no halla defensa.' },
     { ply: 70, rate: 0.86, text: 'Con dominio total, el joven Tal se impone. El Mago de Riga anuncia al mundo lo que está por venir.' },
+  ]
+};
+
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[60])] = { // #60 Spassky vs Bronstein, 1960
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Leningrado, 1960. Boris Spassky, con las blancas, juega un Gambito de Rey tan espectacular que años después inspiraría una escena de James Bond.' },
+    { ply: 7,  rate: 0.96, text: 'Gambito de Rey aceptado: Spassky entrega el peón y se lanza al desarrollo rápido y agresivo.' },
+    { ply: 14, rate: 0.95, text: 'Ambos enrocan; las piezas salen al combate en una posición cargada de electricidad.' },
+    { ply: 21, rate: 0.93, text: 'Spassky maniobra sus caballos hacia el ataque, buscando una brecha en el campo negro.' },
+    { ply: 28, rate: 0.91, text: 'La tensión estalla: peones y piezas chocan en el centro y el flanco rey.' },
+    { ply: 31, rate: 0.86, text: '¡Caballo toma f7! Spassky sacrifica para abrir la posición del rey negro de par en par.' },
+    { ply: 37, rate: 0.88, text: 'La dama y las piezas blancas se vuelcan sobre el monarca enemigo, sin darle respiro.' },
+    { ply: 41, rate: 0.87, text: 'Spassky teje la red final; Bronstein, pese a su genio, no halla defensa.' },
+    { ply: 45, rate: 0.85, text: 'Dama e4, jaque, y la partida está decidida. Un Gambito de Rey digno del cine.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[61])] = { // #61 NN vs Bronstein, 1961 (Dream Game)
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'La Partida Soñada: una composición del genial Bronstein, que con las negras imagina un ataque de fantasía pura.' },
+    { ply: 7,  rate: 0.96, text: 'Defensa Nimzo-India; las piezas salen al combate buscando el desequilibrio.' },
+    { ply: 14, rate: 0.94, text: 'Bronstein provoca complicaciones, sacrificando estructura por actividad de piezas.' },
+    { ply: 18, rate: 0.92, text: 'La dama negra se adentra en el campo blanco, cazando material y abriendo líneas.' },
+    { ply: 24, rate: 0.9,  text: 'Bronstein entrega piezas para mantener el rey blanco atrapado en el centro.' },
+    { ply: 30, rate: 0.89, text: 'El ataque negro no cede: cada jugada es una amenaza nueva sobre el rey enemigo.' },
+    { ply: 34, rate: 0.87, text: 'Caballo e3, jaque: la red se estrecha alrededor del rey blanco acorralado.' },
+    { ply: 38, rate: 0.85, text: '¡Dama toma d1! Jaque mate. Una obra de imaginación pura, soñada por el gran Bronstein.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[62])] = { // #62 Nezhmetdinov vs Chernikov, 1962
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Rostov, 1962. Rashid Nezhmetdínov, con las blancas, el mayor artista del sacrificio, está por inmolar a su dama en una de sus joyas eternas.' },
+    { ply: 7,  rate: 0.96, text: 'Defensa Siciliana, variante del Dragón: las piezas salen rápido, presagiando fuego.' },
+    { ply: 14, rate: 0.94, text: 'Nezhmetdínov coloca sus piezas para el ataque; la posición se carga de tensión.' },
+    { ply: 21, rate: 0.9,  text: 'El juego entra en complicaciones; el genio tártaro huele la combinación.' },
+    { ply: 23, rate: 0.84, text: '¡Dama toma f6! Nezhmetdínov sacrifica su dama por una posición de ataque sin retorno. Pura locura calculada.' },
+    { ply: 30, rate: 0.88, text: 'Sin la dama, pero con piezas y peones perfectamente coordinados, el blanco aprieta el cerco.' },
+    { ply: 37, rate: 0.88, text: 'Las piezas blancas invaden el campo negro; el rey enemigo empieza a tambalearse.' },
+    { ply: 44, rate: 0.88, text: 'Nezhmetdínov recupera material y mantiene al rey negro bajo asedio constante.' },
+    { ply: 51, rate: 0.87, text: 'El ataque se renueva; cada pieza blanca trabaja al unísono hacia el remate.' },
+    { ply: 58, rate: 0.86, text: 'Caen torres y piezas; el sacrificio de dama rinde frutos abrumadores.' },
+    { ply: 65, rate: 0.85, text: 'Chernikov abandona ante un final perdido. El sacrificio de dama de Nezhmetdínov, leyenda eterna.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[63])] = { // #63 Ofstad vs Uhlmann, 1963
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Halle, 1963. Per Ofstad, con las blancas, frente al gran especialista francés Uhlmann. Un ataque relámpago de antología.' },
+    { ply: 7,  rate: 0.96, text: 'Defensa Francesa Tarrasch; el centro se abre pronto y las piezas salen activas.' },
+    { ply: 14, rate: 0.94, text: 'Ofstad desarrolla con energía y prepara una incursión sobre el rey negro.' },
+    { ply: 21, rate: 0.9,  text: 'Las blancas plantan sus caballos en puestos agresivos; algo se cuece en el flanco rey.' },
+    { ply: 24, rate: 0.85, text: '¡Caballo f5! El sacrificio que enciende la mecha: Ofstad ofrece pieza para cazar al rey.' },
+    { ply: 28, rate: 0.86, text: 'Caballo d6, jaque, y el rey negro queda clavado, sin enroque y a la intemperie.' },
+    { ply: 33, rate: 0.86, text: 'Las piezas blancas convergen; Uhlmann, pese a su clase, no encuentra defensa.' },
+    { ply: 37, rate: 0.85, text: 'Torre toma e7 y la posición está sentenciada. Una miniatura de ataque deslumbrante.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[64])] = { // #64 R. Byrne vs Fischer, 1963
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Campeonato de EE. UU., 1963. Fischer, con las negras, está por ganar de una forma tan sutil que su rival abandonará en una posición que parecía buena.' },
+    { ply: 7,  rate: 0.96, text: 'Defensa Grünfeld: Fischer cede el centro de peones para presionarlo con piezas en fianchetto.' },
+    { ply: 14, rate: 0.95, text: 'Ambos enrocan; Fischer despliega sus piezas apuntando, con paciencia, al centro y al rey blanco.' },
+    { ply: 21, rate: 0.93, text: 'La posición parece tranquila... pero Fischer ya ve el plan que demolerá al blanco.' },
+    { ply: 24, rate: 0.9,  text: '¡Ruptura en el centro con e5! Fischer abre las diagonales de sus alfiles como dos cañones.' },
+    { ply: 30, rate: 0.87, text: '¡Caballo toma f2! Fischer sacrifica para desnudar al rey blanco y desatar a sus piezas.' },
+    { ply: 36, rate: 0.86, text: '¡Y caballo toma g2! El alfil de g7 y la dama barren la gran diagonal hacia el rey enemigo.' },
+    { ply: 40, rate: 0.86, text: 'Alfil b7, jaque: las piezas negras coronan su dominio de las diagonales largas.' },
+    { ply: 42, rate: 0.85, text: 'Dama d7, y Byrne abandona. Los comentaristas creían que ganaba... hasta ver la red de Fischer. Genialidad silenciosa.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[65])] = { // #65 Tal vs Larsen, 1965
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Match de candidatos, 1965. El Mago de Riga, Mijaíl Tal, con las blancas, frente al gran Bent Larsen, en un duelo decisivo.' },
+    { ply: 7,  rate: 0.96, text: 'Defensa Siciliana: terreno ideal para los sacrificios y el caos que Tal adoraba.' },
+    { ply: 14, rate: 0.95, text: 'Ambos enrocan en flancos opuestos: la señal inequívoca de una carrera de ataques a muerte.' },
+    { ply: 21, rate: 0.93, text: 'Tal avanza sus peones del flanco rey como una ola; Larsen busca contrajuego en el otro lado.' },
+    { ply: 28, rate: 0.91, text: 'La tensión es máxima; ambos reyes empiezan a sentir el aliento del enemigo.' },
+    { ply: 35, rate: 0.89, text: '¡Sacrificio de pieza! Tal abre líneas hacia el rey negro con su intuición sobrenatural.' },
+    { ply: 42, rate: 0.88, text: 'Las piezas blancas invaden; Larsen se defiende con uñas y dientes en pleno vendaval.' },
+    { ply: 49, rate: 0.88, text: 'Tal mantiene la iniciativa, cambiando golpes en una posición al filo de la navaja.' },
+    { ply: 56, rate: 0.87, text: 'El humo se disipa: Tal emerge con ventaja decisiva tras el caos.' },
+    { ply: 63, rate: 0.86, text: 'El Mago conduce el ataque al desenlace; Larsen ya no puede contener la marea.' },
+    { ply: 70, rate: 0.85, text: 'Las piezas blancas cierran la red final.' },
+    { ply: 73, rate: 0.85, text: 'Dama f7 y la partida está ganada. Tal supera a Larsen en una batalla épica.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[66])] = { // #66 Estrin vs Berliner, 1965 (corr)
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Campeonato mundial por correspondencia, 1965. Hans Berliner, con las negras, firma una de las mejores partidas postales de la historia.' },
+    { ply: 7,  rate: 0.96, text: 'Defensa de los Dos Caballos: una de las aperturas más afiladas, con el caballo blanco saltando a g5.' },
+    { ply: 14, rate: 0.95, text: 'Berliner entrega un peón por iniciativa, en una línea teórica de máximo riesgo.' },
+    { ply: 21, rate: 0.93, text: 'Las piezas negras toman posiciones agresivas; el centro está en llamas.' },
+    { ply: 28, rate: 0.91, text: 'Berliner sacrifica para abrir líneas hacia el rey blanco, calculando cada matiz con tiempo de sobra.' },
+    { ply: 35, rate: 0.9,  text: 'La dama negra penetra con jaque; las piezas blancas no logran coordinar la defensa.' },
+    { ply: 42, rate: 0.89, text: 'Berliner cambia con precisión y se queda con una ventaja clara en el medio juego.' },
+    { ply: 49, rate: 0.89, text: 'Las piezas negras dominan; Estrin se ve forzado a la defensiva más incómoda.' },
+    { ply: 56, rate: 0.88, text: 'Cae material; Berliner encamina la partida hacia un final ganador.' },
+    { ply: 63, rate: 0.88, text: 'El final de torres se decanta: los peones pasados negros marchan al frente.' },
+    { ply: 70, rate: 0.87, text: 'Berliner maniobra con técnica impecable; cada tiempo está medido al milímetro.' },
+    { ply: 77, rate: 0.86, text: 'Los peones negros avanzan imparables; la defensa blanca colapsa.' },
+    { ply: 84, rate: 0.85, text: 'Berliner corona su obra. Una joya del ajedrez por correspondencia, calculada hasta la perfección.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[67])] = { // #67 Lehman vs Smyslov, 1966
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Vasili Smyslov, con las negras, despliega su célebre sentido de la armonía hasta convertir una ventaja mínima en victoria.' },
+    { ply: 7,  rate: 0.96, text: 'Defensa Holandesa; el centro se abre pronto y la lucha por las casillas comienza.' },
+    { ply: 14, rate: 0.95, text: 'Ambos enrocan; Smyslov coloca sus piezas con esa naturalidad fluida tan suya.' },
+    { ply: 21, rate: 0.94, text: 'Cambios en el centro; Smyslov gana espacio y mejor coordinación de piezas.' },
+    { ply: 28, rate: 0.93, text: 'Smyslov presiona el campo blanco, ganando material con una secuencia precisa.' },
+    { ply: 35, rate: 0.92, text: 'Se cambian damas; la partida entra en un final donde Smyslov es maestro indiscutido.' },
+    { ply: 42, rate: 0.92, text: 'Las torres se activan; Smyslov domina las columnas y crea debilidades en el campo rival.' },
+    { ply: 49, rate: 0.91, text: 'Los reyes salen al centro; Smyslov maniobra con la precisión de un relojero suizo.' },
+    { ply: 56, rate: 0.9,  text: 'El alfil y el rey negros coordinan el avance de los peones pasados.' },
+    { ply: 63, rate: 0.89, text: 'Smyslov estrecha el cerco en el final; la defensa blanca se queda sin recursos.' },
+    { ply: 70, rate: 0.88, text: 'La técnica negra es impecable; cada jugada acerca el triunfo.' },
+    { ply: 74, rate: 0.87, text: 'Smyslov afina el cerco; al rey y las piezas blancas no les quedan recursos.' },
+    { ply: 78, rate: 0.86, text: 'Smyslov convierte la ventaja con la elegancia de siempre. Una lección de finales.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[68])] = { // #68 Petrosian vs Estrin, 1968
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Tigran Petrosian, con las blancas: el campeón de la profilaxis, capaz de un ataque demoledor cuando la posición lo pedía.' },
+    { ply: 7,  rate: 0.96, text: 'Apertura inglesa: planteo flexible, fianchetto y lucha estratégica por el centro.' },
+    { ply: 14, rate: 0.95, text: 'Petrosian gana espacio en el flanco de dama y maniobra con su típica solidez.' },
+    { ply: 21, rate: 0.93, text: 'El centro se rompe; Petrosian, sorprendentemente, orienta sus piezas hacia el ataque.' },
+    { ply: 28, rate: 0.91, text: 'Las blancas avanzan los peones del flanco rey, donde el negro acaba de enrocar.' },
+    { ply: 35, rate: 0.88, text: '¡Sacrificios sobre h7! Petrosian abre el enroque negro y desata a sus piezas.' },
+    { ply: 42, rate: 0.87, text: 'La dama y las piezas blancas se vuelcan sobre el rey; el cerco se cierra.' },
+    { ply: 48, rate: 0.86, text: 'Petrosian recoge material y mantiene al rey negro acorralado.' },
+    { ply: 51, rate: 0.85, text: 'La posición está decidida. El maestro de la defensa demuestra que también sabía atacar.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[69])] = { // #69 Larsen vs Spassky, 1970
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'URSS contra el Resto del Mundo, 1970. Larsen abre con el excéntrico 1.b3... y Spassky, con las negras, lo castigará con un mate relámpago de leyenda.' },
+    { ply: 6,  rate: 0.96, text: 'Spassky planta un peón en e4, ganando un espacio enorme y arrinconando a las piezas blancas.' },
+    { ply: 12, rate: 0.94, text: 'Spassky enroca largo y dirige todas sus fuerzas hacia el rey blanco con velocidad pasmosa.' },
+    { ply: 18, rate: 0.9,  text: 'Las negras lanzan sus peones del flanco rey como una avalancha imparable.' },
+    { ply: 22, rate: 0.88, text: '¡El peón llega a h4 y abre la columna! Las torres negras apuntan a la garganta del rey blanco.' },
+    { ply: 26, rate: 0.86, text: 'Spassky sacrifica para forzar la apertura total de las líneas; el rey blanco está perdido.' },
+    { ply: 30, rate: 0.86, text: 'El peón negro corona en g2, amenazando coronar otra dama con jaque.' },
+    { ply: 34, rate: 0.85, text: '¡Peón toma f1, dama y jaque! Larsen abandona ante el mate. Diecisiete jugadas para humillar al 1.b3.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[70])] = { // #70 Karpov vs Unzicker, 1974
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Niza, 1974. Anatoly Karpov, con las blancas, está por dar una de las mayores lecciones posicionales de la historia: la boa constrictor que asfixia sin prisa.' },
+    { ply: 7,  rate: 0.96, text: 'Apertura Española cerrada: planteo clásico, donde cada movimiento construye un plan a largo plazo.' },
+    { ply: 14, rate: 0.95, text: 'Ambos enrocan; Karpov cierra el centro y empieza su maniobra estratégica milimétrica.' },
+    { ply: 21, rate: 0.95, text: 'Karpov avanza d5 y gana espacio; las piezas negras quedan sin buenas casillas.' },
+    { ply: 28, rate: 0.94, text: 'El campeón cierra el flanco de dama, dejando a los caballos negros sin futuro.' },
+    { ply: 35, rate: 0.94, text: 'Karpov maniobra sus piezas hacia las casillas ideales; las negras solo pueden esperar.' },
+    { ply: 42, rate: 0.94, text: 'La boa aprieta: cada jugada blanca reduce un poco más el aire del campo negro.' },
+    { ply: 49, rate: 0.93, text: 'Karpov reagrupa sus torres y dama; la presión es ya insoportable.' },
+    { ply: 56, rate: 0.93, text: 'Las piezas negras están totalmente paralizadas, condenadas a mirar cómo se cierra la trampa.' },
+    { ply: 63, rate: 0.93, text: 'Karpov prepara la ruptura en el flanco rey, el único frente donde aún puede penetrar.' },
+    { ply: 70, rate: 0.92, text: 'Abre líneas con f5; las piezas blancas se infiltran por las grietas del campo negro.' },
+    { ply: 77, rate: 0.91, text: 'El cerco es total; Unzicker, asfixiado, ya no tiene ni una sola jugada útil.' },
+    { ply: 81, rate: 0.9,  text: 'Karpov captura el alfil clave y la posición negra colapsa por completo.' },
+    { ply: 87, rate: 0.88, text: 'La presa está estrangulada. Una obra maestra de la estrategia pura, firmada por el futuro campeón.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[71])] = { // #71 Liu Wenzhe vs Donner, 1978 (Inmortal China)
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Buenos Aires, 1978. Liu Wenzhe, con las blancas, firma la Inmortal China: el primer gran triunfo del ajedrez chino sobre un maestro occidental, con un ataque deslumbrante.' },
+    { ply: 7,  rate: 0.96, text: 'Defensa Pirc: Donner cede el centro; Liu Wenzhe lo aprovecha para avanzar sus peones del flanco rey.' },
+    { ply: 14, rate: 0.94, text: 'Las blancas empujan los peones g y h como un ariete; el rey negro acaba de enrocar hacia el peligro.' },
+    { ply: 18, rate: 0.91, text: 'Liu abre líneas hacia el enroque negro con sacrificios de peones; la tormenta se desata.' },
+    { ply: 24, rate: 0.89, text: 'Las piezas blancas convergen sobre el rey; Donner intenta cerrar las puertas, pero ya es tarde.' },
+    { ply: 28, rate: 0.86, text: '¡Dama h7, jaque! El rey negro es expulsado de su refugio hacia campo abierto.' },
+    { ply: 31, rate: 0.84, text: '¡Dama toma g6! El sacrificio que culmina el ataque: el rey debe capturar y salir a morir.' },
+    { ply: 35, rate: 0.85, text: 'Los alfiles blancos dan jaque tras jaque, arreando al rey negro hacia la red.' },
+    { ply: 39, rate: 0.85, text: 'Alfil toma h6, jaque, y la partida está sentenciada. La Inmortal China entra en la historia.' },
+  ]
+};
+
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[72])] = { // #72 Karpov vs Kasparov, 1985 (WC, caballo pulpo)
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Campeonato del mundo, Moscú 1985. La partida 16: Kasparov, con las negras, planta un caballo en d3 que estrangulará a Karpov durante toda la partida. El caballo pulpo.' },
+    { ply: 7,  rate: 0.96, text: 'Defensa Siciliana; Kasparov entrega un peón en una variante audaz, buscando actividad de piezas.' },
+    { ply: 14, rate: 0.95, text: 'Kasparov sacrifica para obtener un dominio total de las casillas centrales y oscuras.' },
+    { ply: 21, rate: 0.94, text: 'Ambos enrocan; las piezas negras ya están mejor coordinadas, listas para invadir.' },
+    { ply: 28, rate: 0.93, text: 'Kasparov maniobra sus caballos hacia el corazón de la posición blanca.' },
+    { ply: 32, rate: 0.88, text: '¡Caballo a d3! El pulpo se instala en el campo blanco: una pieza eterna que paraliza a Karpov.' },
+    { ply: 38, rate: 0.9,  text: 'Con el caballo clavado como un tumor, Kasparov gana espacio y ata las piezas blancas.' },
+    { ply: 44, rate: 0.9,  text: 'Kasparov aprieta milímetro a milímetro; Karpov apenas puede mover sin empeorar.' },
+    { ply: 50, rate: 0.89, text: 'Las piezas negras dominan el tablero; el campeón se ahoga en su propia posición.' },
+    { ply: 56, rate: 0.89, text: 'Kasparov abre líneas en el flanco rey, sumando un segundo frente al asalto.' },
+    { ply: 62, rate: 0.88, text: 'El ataque negro cobra forma; Karpov se defiende, pero el dique se agrieta.' },
+    { ply: 68, rate: 0.87, text: 'Caen peones y piezas; el dominio del pulpo rinde sus frutos al fin.' },
+    { ply: 74, rate: 0.86, text: 'Kasparov penetra por todas las columnas; la posición blanca se desmorona.' },
+    { ply: 80, rate: 0.85, text: 'Karpov abandona. El caballo de d3 hizo historia: una de las grandes partidas del duelo eterno.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[73])] = { // #73 Karpov vs Hartinov, 1988
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Karpov, con las blancas, ofrece otra demostración de su estilo inconfundible: la presión posicional lenta e implacable.' },
+    { ply: 7,  rate: 0.96, text: 'Gambito de Dama Declinado; planteo sólido donde Karpov se siente como en casa.' },
+    { ply: 14, rate: 0.95, text: 'Ambos enrocan; Karpov perfila pequeñas ventajas y maniobra con paciencia infinita.' },
+    { ply: 21, rate: 0.94, text: 'El campeón coloca sus piezas en las casillas ideales, sin prisa pero sin pausa.' },
+    { ply: 28, rate: 0.94, text: 'Karpov gana espacio en el flanco de dama y ata a las piezas negras a la defensa.' },
+    { ply: 35, rate: 0.93, text: 'Maniobras de caballos hacia los puntos débiles; el cerco se va estrechando.' },
+    { ply: 42, rate: 0.93, text: 'Karpov reagrupa torres y dama por las columnas abiertas, dominando el tablero.' },
+    { ply: 49, rate: 0.92, text: 'La presión es asfixiante; Hartinov apenas dispone de jugadas útiles.' },
+    { ply: 56, rate: 0.92, text: 'El campeón avanza sus peones, abriendo brechas en el muro negro.' },
+    { ply: 63, rate: 0.91, text: 'Las piezas blancas penetran por las grietas; la defensa negra empieza a ceder.' },
+    { ply: 70, rate: 0.9,  text: 'Karpov simplifica hacia un final ganado, con su técnica legendaria.' },
+    { ply: 77, rate: 0.89, text: 'Los cambios precisos dejan a Karpov con una ventaja decisiva.' },
+    { ply: 83, rate: 0.87, text: 'Karpov convierte con la naturalidad de siempre. Otra obra maestra de estrangulamiento.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[74])] = { // #74 Polgar vs Angelova, 1988
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Una joven Polgar, con las blancas, demuestra ya el instinto asesino que llevaría a su familia a la cima del ajedrez.' },
+    { ply: 7,  rate: 0.96, text: 'Defensa Siciliana; las blancas desarrollan con energía y luchan por el centro.' },
+    { ply: 14, rate: 0.94, text: 'El centro se abre con rupturas tempranas; las piezas salen al combate.' },
+    { ply: 21, rate: 0.92, text: 'Polgar gana material y mantiene la iniciativa, presionando al rey negro.' },
+    { ply: 28, rate: 0.9,  text: 'Las piezas blancas convergen sobre el enroque enemigo; el ataque toma forma.' },
+    { ply: 33, rate: 0.87, text: '¡Dama toma f8, jaque! Polgar entrega la dama para forzar el mate.' },
+    { ply: 37, rate: 0.85, text: '¡Torre e8! Jaque mate. Una conclusión fulminante de la joven prodigio.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[75])] = { // #75 Oll vs Ulibin, 1989
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Tiflis, 1989. Lembit Oll, con las blancas, conduce un ataque sostenido contra el rey negro que no le da un instante de respiro.' },
+    { ply: 7,  rate: 0.96, text: 'Defensa Francesa Winawer; las negras ceden el par de alfiles a cambio de estructura.' },
+    { ply: 14, rate: 0.93, text: 'Oll lanza pronto su dama y sus piezas hacia el flanco rey, buscando sangre.' },
+    { ply: 18, rate: 0.88, text: '¡Sacrificio sobre h6! Oll abre el enroque negro y desata el ataque definitivo.' },
+    { ply: 24, rate: 0.88, text: 'La dama blanca acosa al rey con jaques; el monarca negro corre sin hallar refugio.' },
+    { ply: 31, rate: 0.88, text: 'Oll reagrupa sus torres mientras mantiene al rey enemigo en perpetua zozobra.' },
+    { ply: 38, rate: 0.88, text: 'El ataque se renueva ola tras ola; las negras solo pueden defenderse a la desesperada.' },
+    { ply: 45, rate: 0.88, text: 'Oll sacrifica de nuevo para abrir las últimas líneas hacia el rey.' },
+    { ply: 52, rate: 0.87, text: 'Las piezas blancas invaden; el cerco alrededor del rey negro se cierra.' },
+    { ply: 59, rate: 0.86, text: 'Caen los últimos defensores; Oll encamina la partida al triunfo.' },
+    { ply: 63, rate: 0.86, text: 'El rey negro sigue acosado sin tregua; Oll prepara el golpe definitivo.' },
+    { ply: 67, rate: 0.85, text: 'Jaque decisivo. Un ataque modélico, sostenido de principio a fin.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[76])] = { // #76 Ivanchuk vs Yusupov, 1991
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Bruselas, 1991. Yusupov, con las negras, gana una de las partidas más espectaculares de la era moderna: elegida partida del año por su belleza salvaje.' },
+    { ply: 7,  rate: 0.96, text: 'Apertura inglesa con fianchettos dobles; planteo estratégico de altísimo nivel.' },
+    { ply: 14, rate: 0.95, text: 'Ambos enrocan; la posición se carga de tensión en un equilibrio dinámico.' },
+    { ply: 21, rate: 0.93, text: 'Yusupov avanza en el flanco rey, decidido a atacar pese a tener allí a su propio monarca.' },
+    { ply: 28, rate: 0.91, text: 'Las dos partes lanzan sus peones contra el rey enemigo: una carrera de ataques a vida o muerte.' },
+    { ply: 35, rate: 0.88, text: '¡Sacrificios cruzados! El tablero estalla; ambos reyes quedan al aire en un duelo a cara o cruz.' },
+    { ply: 42, rate: 0.87, text: 'Yusupov sacrifica material para llegar antes al rey blanco; cada tiempo es oro.' },
+    { ply: 49, rate: 0.87, text: 'Las piezas negras se infiltran; Ivanchuk se defiende en un laberinto de jaques.' },
+    { ply: 56, rate: 0.87, text: 'Yusupov da jaque tras jaque, arreando al rey blanco hacia su perdición.' },
+    { ply: 63, rate: 0.86, text: 'El ataque negro culmina; Ivanchuk entrega la dama para frenar lo imparable.' },
+    { ply: 70, rate: 0.85, text: 'Yusupov recoge el material y mantiene la iniciativa hasta el final.' },
+    { ply: 74, rate: 0.85, text: 'Las piezas negras dominan el tablero; Ivanchuk ya no halla salvación.' },
+    { ply: 78, rate: 0.85, text: 'Yusupov se impone en una obra de arte. Una de las grandes partidas de ataque modernas.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[77])] = { // #77 Serper vs Nikolaidis, 1993 (Inmortal de Serper)
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'San Petersburgo, 1993. Grigory Serper, con las blancas, firma su Inmortal: un torrente de sacrificios sobre el rey enemigo que parece desafiar toda lógica.' },
+    { ply: 7,  rate: 0.96, text: 'Ataque India de Rey contra una formación Erizo; Serper levanta un centro imponente.' },
+    { ply: 14, rate: 0.95, text: 'Ambos maniobran tras sus peones; Serper acumula fuerzas para un asalto en gran escala.' },
+    { ply: 21, rate: 0.93, text: 'Serper avanza en el centro y el flanco rey, ganando un espacio aplastante.' },
+    { ply: 28, rate: 0.9,  text: '¡Comienza la lluvia de sacrificios! Serper entrega material para hacer saltar las defensas negras.' },
+    { ply: 35, rate: 0.88, text: 'Caen piezas una tras otra; Serper abre el campo enemigo a golpe de sacrificio.' },
+    { ply: 42, rate: 0.88, text: 'Los peones pasados blancos avanzan, sostenidos por el ataque sobre el rey negro.' },
+    { ply: 49, rate: 0.88, text: 'Serper entrega aún más material: la posición desafía toda evaluación normal.' },
+    { ply: 56, rate: 0.88, text: 'Los peones blancos coronan; nuevas damas nacen en el campo de batalla.' },
+    { ply: 63, rate: 0.88, text: 'Serper conduce el caos con mano maestra; cada sacrificio tenía un propósito.' },
+    { ply: 70, rate: 0.87, text: 'El ataque blanco no cede; el rey negro vaga acosado sin refugio posible.' },
+    { ply: 77, rate: 0.87, text: 'Serper recoge la cosecha tras la tormenta de sacrificios.' },
+    { ply: 84, rate: 0.86, text: 'Las piezas blancas dominan el tablero; la red final se cierra.' },
+    { ply: 90, rate: 0.86, text: 'Serper convierte su ventaja con precisión, tras una de las partidas más alocadas y bellas de los noventa.' },
+    { ply: 95, rate: 0.85, text: 'Jaque y triunfo. La Inmortal de Serper: el sacrificio elevado a forma de arte.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[78])] = { // #78 Kasparov vs Short, 1993
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Kasparov, con las blancas, frente a Nigel Short. El campeón despliega su energía característica desde la apertura.' },
+    { ply: 7,  rate: 0.96, text: 'Apertura Española cerrada: planteo clásico, donde Kasparov busca la iniciativa con piezas activas.' },
+    { ply: 14, rate: 0.95, text: 'Ambos enrocan; Kasparov maniobra para abrir el juego en el momento óptimo.' },
+    { ply: 21, rate: 0.94, text: 'Cambios en el flanco de dama; Kasparov gana espacio y mejora sus piezas.' },
+    { ply: 28, rate: 0.93, text: 'El campeón orienta sus caballos hacia el flanco rey, donde planea el asalto.' },
+    { ply: 35, rate: 0.91, text: 'Kasparov avanza los peones h y g, abriendo líneas hacia el rey negro.' },
+    { ply: 42, rate: 0.9,  text: 'Las piezas blancas se concentran sobre el enroque; Short se defiende con tenacidad.' },
+    { ply: 49, rate: 0.89, text: 'Kasparov sacrifica para penetrar; el rey negro empieza a quedarse sin escudo.' },
+    { ply: 56, rate: 0.88, text: 'La dama y las piezas blancas acosan al rey; el cerco se estrecha.' },
+    { ply: 62, rate: 0.87, text: 'Kasparov recoge material y avanza hacia el desenlace.' },
+    { ply: 66, rate: 0.86, text: 'El campeón estrecha el cerco; el rey negro se queda sin defensa.' },
+    { ply: 71, rate: 0.86, text: 'El campeón captura el último peón clave y la partida está ganada. Kasparov en plena forma.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[79])] = { // #79 Shirov vs Judit Polgar, 1994
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Buenos Aires, 1994. Judit Polgar, con las negras, la mejor ajedrecista de la historia, frente al fogoso Shirov. Fuego contra fuego.' },
+    { ply: 7,  rate: 0.96, text: 'Defensa Siciliana; ambos buscan el filo de la navaja desde la apertura.' },
+    { ply: 14, rate: 0.94, text: 'Shirov avanza sus peones del flanco rey; Polgar responde con contragolpes afilados.' },
+    { ply: 21, rate: 0.91, text: 'El centro y los flancos estallan a la vez; la partida es un campo minado.' },
+    { ply: 28, rate: 0.89, text: 'Polgar entrega material por iniciativa, calculando con su precisión letal.' },
+    { ply: 34, rate: 0.88, text: 'Se cambian las damas, pero la presión negra persiste en el medio juego.' },
+    { ply: 40, rate: 0.88, text: 'Polgar gana material con maniobras tácticas exactas; la balanza se inclina.' },
+    { ply: 46, rate: 0.88, text: 'En el final, los caballos y peones de Polgar dominan el tablero.' },
+    { ply: 52, rate: 0.87, text: 'Polgar maniobra con técnica impecable hacia la victoria.' },
+    { ply: 58, rate: 0.86, text: 'Judit Polgar se impone a Shirov en una batalla feroz. La reina del ajedrez en su esplendor.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[80])] = { // #80 Kamsky vs Kramnik, 1994
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Match de candidatos, 1994. Gata Kamsky, con las blancas, frente a un joven Kramnik. Lucha titánica en la cumbre.' },
+    { ply: 7,  rate: 0.96, text: 'Eslava semiabierta, variante Botvinnik: una de las líneas más afiladas y teóricas del ajedrez.' },
+    { ply: 14, rate: 0.94, text: 'Kamsky entrega material por una iniciativa duradera; el caos teórico está servido.' },
+    { ply: 21, rate: 0.92, text: 'Ambos enrocan en flancos opuestos; comienza la carrera de ataques.' },
+    { ply: 28, rate: 0.9,  text: 'Los peones avanzan contra los reyes enemigos; cada tiempo puede ser decisivo.' },
+    { ply: 35, rate: 0.88, text: '¡Sacrificios cruzados! El tablero se incendia en un cálculo de vértigo.' },
+    { ply: 42, rate: 0.87, text: 'Kamsky abre líneas hacia el rey negro y se queda con la iniciativa.' },
+    { ply: 49, rate: 0.87, text: 'Las piezas blancas penetran; Kramnik se defiende en un laberinto de complicaciones.' },
+    { ply: 56, rate: 0.87, text: 'Kamsky recoge material clave y mantiene la presión sobre el rey enemigo.' },
+    { ply: 63, rate: 0.87, text: 'En el final, los peones pasados blancos y las torres deciden la contienda.' },
+    { ply: 70, rate: 0.86, text: 'Kamsky avanza hacia la victoria con precisión; Kramnik no halla salvación.' },
+    { ply: 75, rate: 0.86, text: 'Las torres blancas dominan; la posición negra se viene abajo.' },
+    { ply: 81, rate: 0.85, text: 'Torre c7, jaque, y la partida está decidida. Kamsky vence en una batalla épica.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[81])] = { // #81 Kasparov vs Kramnik, 1996
+  segments: [
+    { ply: 0,  rate: 0.95, text: '1996. Kasparov, con las blancas, frente a su futuro verdugo, Kramnik. Hoy será el joven quien dé la lección.' },
+    { ply: 7,  rate: 0.96, text: 'Eslava semiabierta; planteo profundo donde la teoría y el cálculo se entrelazan.' },
+    { ply: 14, rate: 0.95, text: 'Ambos enrocan; Kasparov empuja en el centro buscando su habitual iniciativa.' },
+    { ply: 21, rate: 0.93, text: 'El centro estalla; Kramnik responde con contragolpes precisos y serenos.' },
+    { ply: 28, rate: 0.91, text: 'Kramnik sacrifica material para desviar el ataque blanco y tomar la iniciativa.' },
+    { ply: 35, rate: 0.89, text: 'Las piezas negras se activan; el rey blanco empieza a sentirse incómodo.' },
+    { ply: 42, rate: 0.88, text: 'Kramnik enroca al fin y dirige sus fuerzas contra el monarca enemigo.' },
+    { ply: 49, rate: 0.87, text: 'La dama negra penetra con jaque; Kasparov, sorprendentemente, está a la defensiva.' },
+    { ply: 56, rate: 0.87, text: 'Kramnik recoge material y mantiene al rey blanco bajo asedio.' },
+    { ply: 63, rate: 0.86, text: 'Las piezas negras dominan el tablero; el cerco se cierra sobre Kasparov.' },
+    { ply: 70, rate: 0.85, text: 'Torre d4, y Kasparov no tiene defensa. Kramnik anuncia que una nueva era se acerca.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[82])] = { // #82 Ivanchuk vs Shirov, 1996
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Wijk aan Zee, 1996. Vassily Ivanchuk, con las blancas, contra Shirov, en uno de los choques más teóricos y afilados de su época.' },
+    { ply: 7,  rate: 0.96, text: 'Eslava semiabierta, variante Botvinnik: el campo de batalla de las complicaciones extremas.' },
+    { ply: 14, rate: 0.94, text: 'Ivanchuk entrega material por iniciativa; ambos navegan un mar de teoría afilada.' },
+    { ply: 21, rate: 0.92, text: 'Ambos enrocan en flancos opuestos; el pulso de los ataques mutuos comienza.' },
+    { ply: 28, rate: 0.9,  text: 'Los peones blancos avanzan amenazantes; Ivanchuk gana espacio en el flanco de dama.' },
+    { ply: 35, rate: 0.88, text: '¡Sacrificios para abrir el campo negro! Ivanchuk se lanza contra el rey enemigo.' },
+    { ply: 42, rate: 0.87, text: 'El peón blanco corona; las piezas convergen sobre el rey negro acorralado.' },
+    { ply: 49, rate: 0.87, text: 'Ivanchuk recupera material con intereses y mantiene un ataque demoledor.' },
+    { ply: 56, rate: 0.87, text: 'Las torres y el caballo blancos dominan; Shirov se defiende sin esperanza.' },
+    { ply: 63, rate: 0.86, text: 'Ivanchuk simplifica hacia un final ganado, con su talento cristalino.' },
+    { ply: 69, rate: 0.85, text: 'Las piezas blancas sentencian. Ivanchuk supera a Shirov en una maraña teórica.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[83])] = { // #83 Xie Jun vs Portisch, 1997
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Xie Jun, campeona del mundo, con las blancas, frente al legendario Lajos Portisch. La gran maestra china ante un veterano de hierro.' },
+    { ply: 7,  rate: 0.96, text: 'Defensa Siciliana Scheveningen: planteo flexible y rico en planes para ambos bandos.' },
+    { ply: 14, rate: 0.95, text: 'Ambos enrocan; Xie Jun prepara la expansión en el flanco de dama y el centro.' },
+    { ply: 21, rate: 0.94, text: 'Maniobras de piezas; la china acumula pequeñas ventajas con paciencia.' },
+    { ply: 28, rate: 0.92, text: 'Xie Jun rompe en el centro y abre líneas hacia el campo negro.' },
+    { ply: 35, rate: 0.9,  text: 'Estallan los cambios; la campeona gana material con una secuencia precisa.' },
+    { ply: 42, rate: 0.89, text: 'Las piezas blancas dominan; Portisch se ve forzado a una defensa difícil.' },
+    { ply: 49, rate: 0.89, text: 'Xie Jun penetra por las columnas abiertas, estrechando el cerco.' },
+    { ply: 56, rate: 0.88, text: 'La presión es constante; el veterano resiste, pero la balanza está echada.' },
+    { ply: 63, rate: 0.88, text: 'La dama y las torres blancas convergen sobre el rey negro.' },
+    { ply: 70, rate: 0.87, text: 'Xie Jun cambia con precisión hacia un final ganador.' },
+    { ply: 77, rate: 0.86, text: 'La campeona conduce la ventaja material con técnica firme.' },
+    { ply: 83, rate: 0.86, text: 'Las piezas blancas recogen la cosecha; Portisch ya no puede resistir.' },
+    { ply: 89, rate: 0.85, text: 'Xie Jun captura el último peón y la partida está ganada. La campeona del mundo se impone con autoridad.' },
   ]
 };
 

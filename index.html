@@ -1603,7 +1603,7 @@ Documento de referencia para usuarios y desarrolladores. Se actualiza incrementa
 - _(Fase 9)_ Performance audit de `renderBoard` (13 asserts): mean 0.55ms / p50 0.30ms en node con DOM mockeado. Browser estimado 3-7ms incluyendo layout+paint. Margen vs 60fps (16.67ms): >2×. Confirmado que `pointermove` NO llama `renderBoard` (drag mueve overlay con `style.left/top`). Sin optimización aplicada per Karpathy.
 - _(Post-P1)_ Perfiles locales (81 asserts). IndexedDB schema bump v1→v2: nuevo almacén `profiles` (`{id, name, pinHash, createdAt, isGuest?}`) + índice `profileId` en `games`. Migración auto-crea perfil "Invitado" y asigna las partidas legacy. **PIN obligatorio de 4 dígitos en la creación** (con campo de confirmación para evitar tipearlo mal), hasheado con SHA-256 vía `crypto.subtle.digest`. Bloqueo de 30s tras 3 intentos fallidos (estado en memoria). Pantalla a pantalla completa al cargar bloquea el juego hasta elegir o crear perfil; el PIN se vuelve a pedir en cada arranque (sin sesión persistente). Botón `👤 nombre` en la barra de controles abre menú con editar/cambiar perfil/borrar. `buildGameRecord` asigna `profileId` y usa nombre del perfil en `white`/`black` para 1p y LAN. `lanOnDCOpen` envía el nombre del perfil en el `hello`. La creación rechaza con mensaje explicativo si el contexto no es seguro (HTTP sobre IP de LAN cruda → no hay Web Crypto disponible); funciona con HTTPS, `localhost`, o `file://`.
 - _(Post-P1)_ Colección "♛ Partidas Célebres" (Clásicas): 123 partidas inmortales de la historia (1820–2006: el Inmortal de Anderssen, la Siempreviva, la Opera Game de Morphy, la Partida del Siglo de Fischer, el Inmortal de Kasparov, Rotlewi–Rubinstein, Steinitz–von Bardeleben, etc.). Embebidas como movetext SAN compacto (~44 KB) en `CLASSIC_GAMES` y expandidas con `pgnToGameRecord` al abrir cada una (parseo perezoso). Las partidas fueron verificadas jugada por jugada contra el motor (round-trip 123/123 tras retirar una transcripción duplicada de la Inmortal). Botón "♛ Clásicas" abre un modal con buscador (por jugador/evento/año) y tabla; "👁 Ver" abre la partida en el visor de estudio vía `viewGameRecord`. Colección de **solo lectura**: no se guardan en IndexedDB ni dependen del perfil activo. Movimientos tomados de colecciones públicas de _immortal games_ (las jugadas de ajedrez son hechos, sin copyright).
-- _(Post-P1)_ Narración dramática de Clásicas (36 de 123 partidas con guión, en progreso por lotes). Botón "🔊 Narrar" en el visor de estudio (solo aparece si la partida tiene guión). Usa el lector de voz integrado del navegador (Web Speech API / `speechSynthesis`) — **100% offline, cero dependencias y cero archivos de audio**: el guión es texto embebido en `CLASSIC_NARRATION` (con clave `narrationKey`, un hash de las jugadas) y la voz la pone el sistema del usuario. `pickSpanishVoice()` prefiere una voz **local** en español (es-MX > es-US/es-419 > es-\*) para garantizar que no haya tráfico de red. La reproducción narrada arranca en la posición inicial y avanza **jugada por jugada**, una pieza a la vez con un deslizamiento suave (clon flotante que reutiliza el estilo `.drag-overlay` del arrastre); se detiene a narrar en los plies con guión —las piezas quedan inmóviles mientras habla la voz— y reanuda al terminar, hasta el final de la partida (`advanceNarration` + `narrateAtPly` + `animateReplayMove`). El ritmo de las jugadas en silencio se mantiene ágil (~490 ms/jugada) y los guiones intercalan líneas puente en los huecos largos, de modo que ningún silencio entre narraciones supere ~3.5 s. Ritmo (`rate`) más lento en los momentos clímax (sacrificios de alfil y de dama). Si el usuario navega manualmente, la narración se detiene sola (guard en `replayGoto` con la bandera `narrationDriving`); también se detiene al salir del visor. Los guiones se escriben por lotes para toda la colección (anclados a las jugadas reales, con `rate` más lento en los clímax) y se van quedando listos para una voz premium futura. La clave `narrationKey` es un hash de las jugadas (evita colisiones entre partidas con mismos jugadores/año). En la lista, las partidas con guión muestran 🔊.
+- _(Post-P1)_ Narración dramática de Clásicas (60 de 123 partidas con guión, en progreso por lotes). Botón "🔊 Narrar" en el visor de estudio (solo aparece si la partida tiene guión). Usa el lector de voz integrado del navegador (Web Speech API / `speechSynthesis`) — **100% offline, cero dependencias y cero archivos de audio**: el guión es texto embebido en `CLASSIC_NARRATION` (con clave `narrationKey`, un hash de las jugadas) y la voz la pone el sistema del usuario. `pickSpanishVoice()` prefiere una voz **local** en español (es-MX > es-US/es-419 > es-\*) para garantizar que no haya tráfico de red. La reproducción narrada arranca en la posición inicial y avanza **jugada por jugada**, una pieza a la vez con un deslizamiento suave (clon flotante que reutiliza el estilo `.drag-overlay` del arrastre); se detiene a narrar en los plies con guión —las piezas quedan inmóviles mientras habla la voz— y reanuda al terminar, hasta el final de la partida (`advanceNarration` + `narrateAtPly` + `animateReplayMove`). El ritmo de las jugadas en silencio se mantiene ágil (~490 ms/jugada) y los guiones intercalan líneas puente en los huecos largos, de modo que ningún silencio entre narraciones supere ~3.5 s. Ritmo (`rate`) más lento en los momentos clímax (sacrificios de alfil y de dama). Si el usuario navega manualmente, la narración se detiene sola (guard en `replayGoto` con la bandera `narrationDriving`); también se detiene al salir del visor. Los guiones se escriben por lotes para toda la colección (anclados a las jugadas reales, con `rate` más lento en los clímax) y se van quedando listos para una voz premium futura. La clave `narrationKey` es un hash de las jugadas (evita colisiones entre partidas con mismos jugadores/año). En la lista, las partidas con guión muestran 🔊.
 
 ---
 
@@ -6374,6 +6374,391 @@ CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[35])] = { // #35 Alekhine vs Reti, 
     { ply: 105, rate: 0.92, text: 'Ambos empujan sus últimos peones; la defensa exacta mantiene la balanza nivelada.' },
     { ply: 112, rate: 0.92, text: 'Los últimos peones caen entre jaques y maniobras; ya no queda con qué ganar.' },
     { ply: 118, rate: 0.9,  text: 'Tablas. Tras ciento dieciocho medias jugadas, dos genios firman las paces, exhaustos y a mano.' },
+  ]
+};
+
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[36])] = { // #36 Bogoljubov vs Alekhine, 1922 (Hastings)
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Hastings, 1922. Alekhine, con las negras, está por construir una de sus obras maestras: una partida que crece como una sinfonía hasta un final asombroso.' },
+    { ply: 7,  rate: 0.96, text: 'Defensa Holandesa: Alekhine plantea una lucha por el centro y el flanco rey, su terreno favorito.' },
+    { ply: 14, rate: 0.95, text: 'Ambos enrocan y completan el desarrollo; la posición está cargada de posibilidades ocultas.' },
+    { ply: 21, rate: 0.95, text: 'Alekhine gana espacio con sus peones centrales y empieza a maniobrar sus piezas hacia el ataque.' },
+    { ply: 28, rate: 0.94, text: 'Los caballos negros buscan puestos avanzados; la presión sobre el campo blanco crece sin pausa.' },
+    { ply: 35, rate: 0.94, text: 'Alekhine avanza en ambos flancos a la vez, abrumando al blanco con amenazas múltiples.' },
+    { ply: 42, rate: 0.93, text: 'La posición es un volcán: Alekhine domina el centro, las columnas y las diagonales.' },
+    { ply: 49, rate: 0.92, text: 'Comienza la cosecha: Alekhine entra en el campo blanco y empieza a recoger material.' },
+    { ply: 56, rate: 0.91, text: 'Las piezas negras invaden por todos lados; Bogoljubov se defiende, pero el dique se rompe.' },
+    { ply: 63, rate: 0.9,  text: 'Los peones pasados de Alekhine avanzan hacia la coronación, sembrando el pánico.' },
+    { ply: 66, rate: 0.88, text: '¡Un peón corona con jaque! Y Alekhine aún tiene más peones rodando hacia el final del tablero.' },
+    { ply: 73, rate: 0.9,  text: 'La amenaza es surrealista: Alekhine maniobra para coronar varias damas a la vez.' },
+    { ply: 80, rate: 0.9,  text: 'Las dos partes empujan sus peones en una carrera demencial hacia la octava fila.' },
+    { ply: 87, rate: 0.9,  text: 'Alekhine ordena el caos con precisión; cada peón suyo es una amenaza de nueva dama.' },
+    { ply: 94, rate: 0.89, text: 'Caen torres y peones en un torbellino de cálculo; Alekhine lo tiene todo medido.' },
+    { ply: 98, rate: 0.87, text: '¡Otro peón corona con jaque! La avalancha negra es ya imparable.' },
+    { ply: 102, rate: 0.88, text: 'El final está decidido: Alekhine tiene material y peones de sobra para coronar.' },
+    { ply: 106, rate: 0.86, text: 'Bogoljubov abandona ante una de las partidas más extraordinarias jamás jugadas. Alekhine en estado puro.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[37])] = { // #37 Saemisch vs Nimzowitsch, 1923 (Inmortal del Zugzwang)
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Copenhague, 1923. Aron Nimzowitsch, con las negras, está por crear la Inmortal del Zugzwang: ganará sin dar un solo jaque, solo asfixiando al rival hasta que no le quede ninguna jugada.' },
+    { ply: 7,  rate: 0.96, text: 'Apertura por flancos; ambos despliegan sus alfiles en fianchetto, en una lucha estratégica de altura.' },
+    { ply: 14, rate: 0.95, text: 'Ambos enrocan; Nimzowitsch empieza a aplicar sus principios: control de casillas, no de material.' },
+    { ply: 21, rate: 0.95, text: 'Nimzowitsch ocupa la columna abierta y domina las casillas clave con sus piezas.' },
+    { ply: 28, rate: 0.94, text: 'Pieza a pieza, las negras estrangulan la posición blanca; Sämisch ya casi no puede mover nada.' },
+    { ply: 35, rate: 0.93, text: 'El cerco es total: todas las piezas blancas están atadas, paralizadas, sin un solo plan.' },
+    { ply: 42, rate: 0.92, text: 'Nimzowitsch coloca la última pieza en su sitio. Las blancas son ya una estatua.' },
+    { ply: 47, rate: 0.9,  text: 'No quedan jugadas útiles para el blanco: mover cualquier pieza pierde al instante.' },
+    { ply: 50, rate: 0.88, text: 'Un tranquilo h6, sin amenaza alguna, y Sämisch abandona: está en zugzwang total. La partida más célebre sobre la parálisis posicional.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[38])] = { // #38 Gruenfeld vs Alekhine, 1923
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Alekhine, con las negras, frente a Grünfeld, uno de los grandes teóricos de la época. Un duelo de comprensión profunda.' },
+    { ply: 7,  rate: 0.96, text: 'Gambito de Dama Declinado: planteo clásico y sólido, donde las ideas pesan más que los golpes.' },
+    { ply: 14, rate: 0.95, text: 'Maniobras lentas en el centro; Alekhine prepara la ruptura liberadora con paciencia.' },
+    { ply: 21, rate: 0.95, text: 'El centro se abre; Alekhine despliega sus piezas con una armonía superior.' },
+    { ply: 28, rate: 0.94, text: 'Las negras toman la iniciativa, presionando los puntos débiles del campo blanco.' },
+    { ply: 35, rate: 0.93, text: 'Alekhine reagrupa caballos y alfiles, buscando dominar las casillas centrales.' },
+    { ply: 42, rate: 0.92, text: 'La presión negra es constante; Grünfeld se defiende con precisión, pero cede terreno.' },
+    { ply: 49, rate: 0.91, text: 'Alekhine empuja en el centro y abre líneas decisivas hacia el rey blanco.' },
+    { ply: 56, rate: 0.9,  text: 'Las piezas negras invaden; la posición blanca empieza a desmoronarse.' },
+    { ply: 62, rate: 0.89, text: 'Cae material; Alekhine conduce el ataque con su característica energía.' },
+    { ply: 68, rate: 0.87, text: '¡Alfil d4, jaque! El golpe final. Grünfeld abandona ante la maestría de Alekhine.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[39])] = { // #39 Gibaud vs Lazard, 1924 (miniatura)
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'París, 1924. La partida magistral más corta de la historia: durará apenas cuatro jugadas. Un parpadeo, y todo habrá terminado.' },
+    { ply: 4,  rate: 0.92, text: 'Las blancas mueven el caballo a d2 y avanzan distraídamente... sin oler la trampa que las negras están tendiendo.' },
+    { ply: 8,  rate: 0.86, text: '¡Caballo e3! Una bomba: el caballo amenaza la dama y, si la captura el peón, el alfil da mate. Gibaud abandona en la jugada cuatro. Una lección eterna de humildad.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[40])] = { // #40 Reti vs Alekhine, 1925 (Baden-Baden)
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Baden-Baden, 1925. Réti, pionero del hipermodernismo, contra Alekhine. De aquí saldrá una de las combinaciones más profundas jamás calculadas.' },
+    { ply: 7,  rate: 0.96, text: 'Apertura Réti: el blanco cede el centro de peones para atacarlo desde los flancos. Ajedrez moderno y sutil.' },
+    { ply: 14, rate: 0.95, text: 'Ambos maniobran con piezas en una posición rica y llena de tensión latente.' },
+    { ply: 21, rate: 0.95, text: 'Alekhine coloca sus piezas en puestos activos, vigilando el centro y las diagonales largas.' },
+    { ply: 28, rate: 0.94, text: 'El famoso baile de alfiles: las piezas danzan buscando la casilla ideal, midiéndose en silencio.' },
+    { ply: 35, rate: 0.94, text: 'Alekhine prepara el terreno; cada pieza ocupa su lugar para la combinación que se gesta.' },
+    { ply: 42, rate: 0.93, text: 'Las negras abren líneas en el flanco rey, presionando el enroque blanco.' },
+    { ply: 49, rate: 0.92, text: 'Estallan las capturas: Alekhine entra en una secuencia táctica de una profundidad vertiginosa.' },
+    { ply: 56, rate: 0.9,  text: 'Las piezas vuelan por todo el tablero; Alekhine lo tiene calculado hasta el último detalle.' },
+    { ply: 63, rate: 0.89, text: 'Los caballos negros saltan con jaques, tejiendo una red imposible de descifrar para el blanco.' },
+    { ply: 70, rate: 0.88, text: 'La combinación culmina: Alekhine recoge material decisivo tras una maniobra magistral.' },
+    { ply: 76, rate: 0.88, text: 'El caballo negro completa su periplo letal por el tablero.' },
+    { ply: 80, rate: 0.86, text: 'Réti abandona ante una de las combinaciones más célebres de la historia. Alekhine, insondable.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[41])] = { // #41 Nimzowitsch vs Systemsson, 1927 (ilustrativa)
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Una partida ilustrativa de Nimzowitsch, donde el gran teórico muestra su Sistema en acción contra un rival imaginario.' },
+    { ply: 7,  rate: 0.96, text: 'Las blancas avanzan los peones del flanco rey desde la apertura, ganando espacio sin prisa.' },
+    { ply: 14, rate: 0.95, text: 'Nimzowitsch profilaxis pura: previene el contrajuego enemigo antes de lanzar su propio plan.' },
+    { ply: 21, rate: 0.94, text: 'Las piezas blancas ocupan las casillas dominantes; el campo negro se va quedando sin aire.' },
+    { ply: 28, rate: 0.93, text: 'Nimzowitsch maniobra con sus caballos, fiel a su doctrina de control antes que de ataque.' },
+    { ply: 35, rate: 0.92, text: 'La superioridad posicional es total; ahora sí, las blancas se vuelcan hacia el rey enemigo.' },
+    { ply: 41, rate: 0.9,  text: 'Se abren las líneas decisivas; el rey negro queda expuesto a toda la fuerza blanca.' },
+    { ply: 47, rate: 0.86, text: '¡Alfil g5! Jaque mate. La estrategia, llevada hasta el final, se corona con un golpe táctico perfecto.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[42])] = { // #42 Capablanca vs Spielmann, 1927
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Nueva York, 1927. Capablanca, con las blancas, frente a Spielmann. El cubano dará una lección de claridad cristalina.' },
+    { ply: 7,  rate: 0.96, text: 'Gambito de Dama: desarrollo natural, sin un solo movimiento superfluo. Así jugaba la máquina cubana.' },
+    { ply: 14, rate: 0.95, text: 'Capablanca cambia en el centro y se queda con una pequeña pero perdurable ventaja estructural.' },
+    { ply: 21, rate: 0.94, text: 'Sus piezas ocupan posiciones ideales; cada una colabora con las demás sin estorbarse.' },
+    { ply: 28, rate: 0.93, text: 'Capablanca presiona sobre las debilidades negras con una técnica impecable.' },
+    { ply: 35, rate: 0.91, text: 'Gana material con una combinación sencilla y exacta; no hay fuegos artificiales, solo verdad.' },
+    { ply: 42, rate: 0.9,  text: 'Con ventaja material, Capablanca simplifica hacia un final trivialmente ganado.' },
+    { ply: 48, rate: 0.89, text: 'Sus peones y piezas avanzan en formación perfecta hacia el objetivo.' },
+    { ply: 51, rate: 0.88, text: 'Spielmann no tiene defensa. Capablanca convierte con la limpieza de siempre.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[43])] = { // #43 Glucksberg vs Najdorf, 1929 (Inmortal Polaca)
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Varsovia, 1929. Un jovencísimo Miguel Najdorf, con las negras, firma la Inmortal Polaca: sacrificará cuatro piezas menores para cazar al rey blanco.' },
+    { ply: 7,  rate: 0.96, text: 'Defensa Holandesa; Najdorf plantea desde temprano un juego agresivo en el flanco rey.' },
+    { ply: 14, rate: 0.95, text: 'Ambos enrocan corto; las piezas se concentran cerca de los reyes, presagiando tormenta.' },
+    { ply: 18, rate: 0.88, text: '¡Alfil toma h2, jaque! El primer sacrificio. Najdorf abre el enroque blanco sin contemplaciones.' },
+    { ply: 24, rate: 0.88, text: 'La dama negra se suma al asalto; las piezas blancas no alcanzan a defender a su rey.' },
+    { ply: 30, rate: 0.86, text: 'Najdorf entrega pieza tras pieza, arrastrando al rey blanco fuera de su refugio.' },
+    { ply: 36, rate: 0.86, text: 'El rey blanco vaga por el centro, perseguido por un enjambre de piezas negras sacrificadas.' },
+    { ply: 42, rate: 0.85, text: 'Cae la última pieza al fuego del ataque; el rey blanco está completamente acorralado.' },
+    { ply: 44, rate: 0.85, text: '¡Peón h5! Jaque mate. Cuatro piezas menores ofrendadas para un mate inmortal. La joya polaca de Najdorf.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[44])] = { // #44 Spielmann vs Hunlinger, 1929
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Rudolf Spielmann, el último gran romántico, lleva las blancas: para él, sacrificar es un arte y un deber.' },
+    { ply: 7,  rate: 0.96, text: 'Defensa Caro-Kann; Spielmann desarrolla con orden, acumulando fuerzas hacia el flanco rey.' },
+    { ply: 14, rate: 0.95, text: 'Las piezas salen al combate; Spielmann ya mira hacia el enroque enemigo.' },
+    { ply: 21, rate: 0.94, text: 'Ambos enrocan; el blanco coloca caballos agresivos apuntando al rey negro.' },
+    { ply: 28, rate: 0.93, text: 'Spielmann maniobra sus piezas hacia el ataque, paciente como un depredador.' },
+    { ply: 35, rate: 0.92, text: 'La dama y los caballos blancos se concentran sobre el enroque; la presión es enorme.' },
+    { ply: 42, rate: 0.91, text: 'Spielmann reagrupa para el golpe; cada pieza ocupa su puesto de asalto.' },
+    { ply: 48, rate: 0.89, text: 'Las torres se suman; el rey negro empieza a quedarse sin defensores.' },
+    { ply: 51, rate: 0.86, text: '¡Dama toma h7, jaque! El sacrificio que abre la puerta final. El rey debe capturar.' },
+    { ply: 55, rate: 0.85, text: '¡Torre h8! Jaque mate. Spielmann cierra con el sacrificio elegante que tanto amaba.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[45])] = { // #45 Sultan Khan vs Capablanca, 1930 (maratón)
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Hastings, 1930. Mir Sultan Khan, el genio analfabeto de la India que asombró a Europa, con las blancas... contra nada menos que Capablanca.' },
+    { ply: 7,  rate: 0.96, text: 'Apertura cerrada y maniobrera, justo el terreno donde el instinto natural de Sultan Khan brillaba.' },
+    { ply: 14, rate: 0.95, text: 'Ambos enrocan; Sultan Khan construye una estructura sólida y empieza a maniobrar con paciencia oriental.' },
+    { ply: 21, rate: 0.95, text: 'Cambios de piezas; Sultan Khan se queda con una ventaja de estructura, pequeña pero duradera.' },
+    { ply: 28, rate: 0.94, text: 'El indio avanza sus peones con criterio, ganando espacio frente al mismísimo Capablanca.' },
+    { ply: 35, rate: 0.94, text: 'Maniobras de piezas en busca de las casillas clave; la partida se vuelve un duelo de paciencia.' },
+    { ply: 42, rate: 0.94, text: 'Se cambian damas y torres; la posición se encamina hacia un final tenso y técnico.' },
+    { ply: 49, rate: 0.93, text: 'Sultan Khan domina las columnas abiertas, atando a las piezas negras a la defensa.' },
+    { ply: 56, rate: 0.93, text: 'El indio aprieta milímetro a milímetro; Capablanca, por una vez, está a la defensiva.' },
+    { ply: 63, rate: 0.93, text: 'Las torres maniobran sin tregua; Sultan Khan busca crear una segunda debilidad.' },
+    { ply: 70, rate: 0.93, text: 'La dama negra busca contrajuego con jaques, pero el rey blanco se pasea con calma.' },
+    { ply: 77, rate: 0.93, text: 'Sultan Khan no se inmuta ante los jaques; reorganiza sus fuerzas y sigue su plan.' },
+    { ply: 84, rate: 0.93, text: 'El blanco avanza sus peones del flanco rey, ganando aún más espacio.' },
+    { ply: 91, rate: 0.93, text: 'La presión es asfixiante; las piezas negras apenas tienen casillas donde respirar.' },
+    { ply: 98, rate: 0.92, text: 'Sultan Khan maniobra el rey y la dama hacia posiciones dominantes.' },
+    { ply: 105, rate: 0.92, text: 'Las torres blancas penetran en el campo negro; el cerco se estrecha.' },
+    { ply: 112, rate: 0.92, text: 'Capablanca resiste con su técnica legendaria, pero la balanza está inclinada.' },
+    { ply: 119, rate: 0.91, text: 'Sultan Khan avanza sus peones pasados; la defensa negra cruje al fin.' },
+    { ply: 125, rate: 0.9,  text: 'Las torres y los peones blancos deciden: Capablanca ya no puede sostener la posición.' },
+    { ply: 129, rate: 0.88, text: 'Sultan Khan vence a Capablanca. El genio venido de la India humilla, esta vez, a la mismísima máquina cubana.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[46])] = { // #46 Korchmar vs Poliak, 1931
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Ucrania, 1931. Una partida vibrante donde las blancas demuestran que el ataque, bien preparado, es imparable.' },
+    { ply: 7,  rate: 0.96, text: 'Apertura Española: planteo clásico, lucha por el centro y desarrollo armónico.' },
+    { ply: 14, rate: 0.95, text: 'Cambios tempranos; las blancas se quedan con una pequeña ventaja de desarrollo.' },
+    { ply: 21, rate: 0.94, text: 'Las blancas avanzan en el centro y abren líneas hacia el rey negro.' },
+    { ply: 28, rate: 0.92, text: 'Los caballos blancos saltan a posiciones agresivas; la presión sobre el campo negro aumenta.' },
+    { ply: 35, rate: 0.9,  text: 'Las blancas sacrifican para abrir el enroque negro y desatar el ataque definitivo.' },
+    { ply: 41, rate: 0.88, text: 'Las piezas blancas convergen sobre el rey; las negras ya no tienen defensa.' },
+    { ply: 45, rate: 0.86, text: 'Torre g8, jaque, y la posición está sentenciada. Un ataque modélico de principio a fin.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[47])] = { // #47 Alekhine vs Alexander, 1936
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Alekhine, con las blancas, frente al maestro inglés Alexander. El campeón del mundo en plena forma combinativa.' },
+    { ply: 7,  rate: 0.96, text: 'Defensa India: planteo moderno, con fianchettos y lucha por el control a distancia del centro.' },
+    { ply: 14, rate: 0.95, text: 'Ambos enrocan; Alekhine cambia piezas para quedarse con una estructura cómoda.' },
+    { ply: 21, rate: 0.94, text: 'Alekhine maniobra hacia el centro, preparando la ruptura que liberará su energía.' },
+    { ply: 28, rate: 0.93, text: 'El centro se rompe; las piezas blancas adquieren actividad y apuntan al rey negro.' },
+    { ply: 35, rate: 0.92, text: 'Alekhine concentra fuerzas en el flanco rey, donde el negro ha quedado algo débil.' },
+    { ply: 42, rate: 0.9,  text: 'El campeón sacrifica para abrir líneas y lanzar sus piezas contra el monarca enemigo.' },
+    { ply: 48, rate: 0.88, text: 'Las piezas blancas penetran; Alexander se defiende, pero el cerco se cierra.' },
+    { ply: 53, rate: 0.87, text: 'Alekhine remata con su precisión habitual. Otra víctima del genio combinativo del campeón.' },
+  ]
+};
+
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[48])] = { // #48 Euwe vs Maroczy, 1936
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Max Euwe, campeón del mundo, lleva las blancas frente al veterano Maróczy. Una lección de ataque sobre el enroque enemigo.' },
+    { ply: 7,  rate: 0.96, text: 'Gambito de Dama Declinado: desarrollo clásico y sólido por ambos lados.' },
+    { ply: 14, rate: 0.95, text: 'Ambos completan el desarrollo; Euwe orienta poco a poco sus piezas hacia el flanco rey.' },
+    { ply: 21, rate: 0.94, text: 'Euwe enroca y planta un caballo agresivo en e5, ganando espacio en el centro.' },
+    { ply: 28, rate: 0.93, text: 'La dama blanca se desplaza al flanco rey; la maquinaria de ataque se pone en marcha.' },
+    { ply: 35, rate: 0.91, text: '¡Alfil toma h6! Euwe sacrifica para destruir el escudo de peones del rey negro.' },
+    { ply: 42, rate: 0.9,  text: 'Las torres y la dama blancas se vuelcan por las líneas abiertas hacia el monarca.' },
+    { ply: 49, rate: 0.89, text: 'El rey negro, al desnudo, intenta huir mientras Euwe estrecha el cerco.' },
+    { ply: 56, rate: 0.88, text: 'Las piezas blancas dominan cada casilla en torno al rey; ya no hay defensa posible.' },
+    { ply: 63, rate: 0.87, text: 'Euwe recoge material con jaques precisos, encaminando la partida al triunfo.' },
+    { ply: 69, rate: 0.86, text: 'Jaque decisivo. Maróczy abandona ante el ataque impecable del campeón holandés.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[49])] = { // #49 Botvinnik vs Capablanca, 1938 (AVRO)
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Torneo AVRO, 1938. Mijaíl Botvinnik, futuro patriarca soviético, está por crear una de las combinaciones más célebres de todos los tiempos... nada menos que contra Capablanca.' },
+    { ply: 7,  rate: 0.96, text: 'Defensa Nimzo-India: Capablanca entrega el par de alfiles para dañar la estructura blanca.' },
+    { ply: 14, rate: 0.95, text: 'Botvinnik acepta peones doblados a cambio de un centro poderoso y el control del espacio.' },
+    { ply: 21, rate: 0.95, text: 'Cambios de alfiles; Botvinnik prepara con paciencia el avance de sus peones centrales.' },
+    { ply: 28, rate: 0.94, text: 'Los caballos maniobran; Capablanca presiona los peones débiles, Botvinnik prepara su ruptura.' },
+    { ply: 35, rate: 0.94, text: 'Botvinnik empuja sus peones centrales; el rodillo blanco se pone en marcha.' },
+    { ply: 42, rate: 0.93, text: 'El centro avanza imparable: los peones blancos amenazan con arrollar la posición negra.' },
+    { ply: 49, rate: 0.92, text: 'Se cambian torres; queda una posición donde el peón pasado blanco será el protagonista.' },
+    { ply: 55, rate: 0.9,  text: 'Las damas y los alfiles se enfrentan; Botvinnik calcula una combinación deslumbrante.' },
+    { ply: 59, rate: 0.85, text: '¡Alfil a3! La jugada inmortal. Botvinnik ofrece el alfil para desviar a la dama negra de la defensa.' },
+    { ply: 61, rate: 0.85, text: '¡Caballo h5! Un segundo sacrificio: el caballo se inmola para abrir el camino de la dama blanca.' },
+    { ply: 63, rate: 0.86, text: 'Dama g5, jaque: con las defensas desviadas, la dama blanca entra a rematar.' },
+    { ply: 67, rate: 0.86, text: '¡Y el peón corona en e7! La combinación se cierra: el peón pasado decide la partida.' },
+    { ply: 73, rate: 0.88, text: 'Capablanca da jaques desesperados, pero el rey blanco se escapa hacia adelante.' },
+    { ply: 77, rate: 0.87, text: 'Botvinnik conduce a su rey a la seguridad mientras el peón coronado sentencia.' },
+    { ply: 81, rate: 0.86, text: 'Capablanca abandona. Botvinnik firma una de las combinaciones más bellas de la historia, ante el mayor de los genios.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[50])] = { // #50 De Ronde vs Kamstra, 1938 (maratón)
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Ámsterdam, 1938. Una batalla larga e intensa sobre una estructura de peones cerrada, donde el plan correcto lo es todo.' },
+    { ply: 7,  rate: 0.96, text: 'Defensa India de Rey: las negras ceden el centro para golpearlo después; las blancas levantan un muro de peones.' },
+    { ply: 14, rate: 0.95, text: 'El centro se cierra; ambos bandos preparan rupturas en flancos opuestos.' },
+    { ply: 21, rate: 0.95, text: 'Las blancas avanzan en el flanco rey, las negras maniobran sus caballos buscando contrajuego.' },
+    { ply: 28, rate: 0.94, text: 'Ambos enrocan en lados opuestos; la partida promete una carrera de ataques.' },
+    { ply: 35, rate: 0.94, text: 'Maniobras de piezas tras las líneas de peones; cada bando coloca sus fuerzas para el asalto.' },
+    { ply: 42, rate: 0.94, text: 'La tensión se acumula; las blancas preparan la apertura de líneas hacia el rey negro.' },
+    { ply: 49, rate: 0.93, text: 'Los caballos saltan a puestos avanzados; la lucha por las casillas clave se intensifica.' },
+    { ply: 56, rate: 0.93, text: 'Las blancas ganan terreno paso a paso; las negras resisten con maniobras defensivas.' },
+    { ply: 63, rate: 0.92, text: 'Estallan las capturas: la partida entra en una fase de cálculo agudo.' },
+    { ply: 70, rate: 0.9,  text: 'Sacrificios y contragolpes; el tablero se incendia tras la larga preparación.' },
+    { ply: 77, rate: 0.89, text: 'Las blancas abren el campo enemigo y sus piezas penetran con fuerza.' },
+    { ply: 84, rate: 0.89, text: 'El material se reparte en el fragor; las blancas conservan la iniciativa.' },
+    { ply: 91, rate: 0.88, text: 'Los peones pasados blancos avanzan, decidiendo poco a poco la contienda.' },
+    { ply: 95, rate: 0.88, text: 'Las piezas blancas coordinan el remate; las negras ya no tienen recursos.' },
+    { ply: 99, rate: 0.86, text: 'Tras casi cincuenta jugadas, las blancas culminan una partida épica de planes opuestos.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[51])] = { // #51 Smyslov vs Kottnauer, 1946
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Vasili Smyslov, futuro campeón del mundo, lleva las blancas. Armonía de piezas y golpe certero en el momento justo.' },
+    { ply: 7,  rate: 0.96, text: 'Defensa Siciliana: Smyslov desarrolla con naturalidad, buscando la iniciativa en el centro.' },
+    { ply: 14, rate: 0.95, text: 'Las piezas se despliegan; Smyslov coloca todo en su sitio antes de actuar.' },
+    { ply: 21, rate: 0.93, text: 'Smyslov rompe en el centro y abre líneas hacia el rey negro, aún sin enrocar.' },
+    { ply: 28, rate: 0.91, text: 'Estallan los cambios; Smyslov gana material con una secuencia precisa.' },
+    { ply: 34, rate: 0.89, text: 'Las piezas blancas dominan; el rey negro queda expuesto en el centro.' },
+    { ply: 41, rate: 0.87, text: 'Jaque decisivo: Smyslov recoge el premio. Pura eficiencia de un futuro campeón.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[52])] = { // #52 Smyslov vs Uhlmann, 1946
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Smyslov, con las blancas... pero hoy será Uhlmann, con las negras, quien lleve la voz cantante.' },
+    { ply: 7,  rate: 0.96, text: 'Defensa India de Dama: fianchettos y lucha sutil por las casillas centrales.' },
+    { ply: 14, rate: 0.95, text: 'Cambios en el centro; Uhlmann obtiene un peón pasado y piezas activas.' },
+    { ply: 21, rate: 0.93, text: 'Uhlmann coloca sus caballos en puestos dominantes, presionando el campo blanco.' },
+    { ply: 28, rate: 0.9,  text: 'Las negras invaden por las columnas abiertas; la posición blanca empieza a ceder.' },
+    { ply: 32, rate: 0.88, text: 'Cae calidad en el campo blanco; Uhlmann gana material con maniobras exactas.' },
+    { ply: 36, rate: 0.86, text: 'Con ventaja decisiva, Uhlmann impone su juego. Hasta un futuro campeón puede tropezar.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[53])] = { // #53 Tartakower vs Euwe, 1948
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'El ingenioso Tartakower, con las blancas, frente a Euwe. Una partida que se enredará en complicaciones fascinantes.' },
+    { ply: 7,  rate: 0.96, text: 'Apertura Italiana: desarrollo clásico, lucha por el centro, piezas saliendo con naturalidad.' },
+    { ply: 14, rate: 0.95, text: 'Ambos enrocan; las maniobras de caballos buscan los mejores puestos para el medio juego.' },
+    { ply: 21, rate: 0.94, text: 'Reagrupamiento de piezas; cada bando perfila su plan en una posición rica y flexible.' },
+    { ply: 28, rate: 0.93, text: 'Tartakower gana espacio en el flanco de dama; Euwe prepara su contrajuego.' },
+    { ply: 35, rate: 0.92, text: 'Se abren líneas en ambos flancos; la tensión escala con cada jugada.' },
+    { ply: 42, rate: 0.91, text: 'Euwe lanza su ataque sobre el rey blanco, entregando material por la iniciativa.' },
+    { ply: 49, rate: 0.89, text: 'El tablero estalla: sacrificios y jaques cruzados, en un caos calculado por el campeón.' },
+    { ply: 56, rate: 0.88, text: 'Euwe persigue al rey blanco con sus piezas, sin dejarle un instante de respiro.' },
+    { ply: 63, rate: 0.88, text: 'El rey blanco vaga por el centro mientras Euwe teje la red final.' },
+    { ply: 70, rate: 0.87, text: 'Las piezas negras convergen; Tartakower, pese a su ingenio, no halla salvación.' },
+    { ply: 77, rate: 0.86, text: 'Euwe recoge material y acorrala al rey enemigo sin escapatoria.' },
+    { ply: 84, rate: 0.85, text: 'Jaque tras jaque, Euwe sentencia. El campeón holandés se impone en una maraña inolvidable.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[54])] = { // #54 Donald Byrne vs Fischer, 1956 (Partida del Siglo)
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Nueva York, 1956. Un niño de trece años llamado Bobby Fischer, con las negras, está por jugar la partida que el mundo bautizará como La Partida del Siglo.' },
+    { ply: 7,  rate: 0.96, text: 'Defensa Grünfeld: Fischer cede el centro de peones para atacarlo con piezas, como los grandes hipermodernos.' },
+    { ply: 14, rate: 0.95, text: 'Las blancas construyen un gran centro; el niño Fischer maniobra con una madurez asombrosa.' },
+    { ply: 21, rate: 0.94, text: 'Fischer lanza su caballo a a4, ofreciendo complicaciones que solo él, a sus trece años, calcula a fondo.' },
+    { ply: 28, rate: 0.92, text: 'El centro estalla; Fischer entrega y recupera material, sembrando el desorden en el campo blanco.' },
+    { ply: 34, rate: 0.84, text: '¡Alfil e6! La jugada inmortal. Fischer ofrece su dama entera... el niño ha visto algo que su rival no.' },
+    { ply: 40, rate: 0.86, text: 'Las blancas toman la dama, pero Fischer desata una tromba de jaques con torres, alfiles y caballos.' },
+    { ply: 46, rate: 0.86, text: 'El famoso molino: las piezas negras giran arrancando material en cada vuelta. El rey blanco no respira.' },
+    { ply: 52, rate: 0.87, text: 'Fischer ha recuperado con creces el material; ahora tiene torre, dos alfiles y caballo por la dama.' },
+    { ply: 58, rate: 0.88, text: 'Con su ejército coordinado a la perfección, el niño acorrala al rey blanco.' },
+    { ply: 64, rate: 0.88, text: 'Las piezas negras tejen la red final alrededor del monarca enemigo.' },
+    { ply: 70, rate: 0.87, text: 'El rey blanco huye, pero Fischer no le concede ni una sola casilla segura.' },
+    { ply: 76, rate: 0.86, text: 'La maquinaria de Fischer converge para el remate; el mate es ya inevitable.' },
+    { ply: 82, rate: 0.84, text: '¡Torre c2! Jaque mate. Un niño de trece años acaba de jugar una de las partidas más bellas de la historia. Había nacido una leyenda.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[55])] = { // #55 Sliwa vs Bronstein, 1957
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Gotha, 1957. Bogdan Sliwa, con las blancas, frente al genial Bronstein. Hoy, sorprendentemente, será el mago quien caiga.' },
+    { ply: 7,  rate: 0.96, text: 'Defensa Holandesa Leningrado: Bronstein plantea un juego agresivo y desequilibrado, como le gusta.' },
+    { ply: 14, rate: 0.95, text: 'Ambos despliegan sus piezas; Sliwa enroca largo, buscando atacar el centro y el flanco rey.' },
+    { ply: 21, rate: 0.94, text: 'Se abre el juego; las blancas obtienen actividad mientras Bronstein busca complicaciones.' },
+    { ply: 28, rate: 0.93, text: 'Sliwa avanza sus peones y gana espacio, presionando la posición negra.' },
+    { ply: 35, rate: 0.92, text: 'Las piezas blancas penetran en el campo enemigo; Bronstein, por una vez, está incómodo.' },
+    { ply: 42, rate: 0.9,  text: 'Sliwa recoge material en el flanco de dama; la balanza se inclina a su favor.' },
+    { ply: 49, rate: 0.89, text: 'Las complicaciones favorecen al blanco, que conserva su ventaja con firmeza.' },
+    { ply: 53, rate: 0.88, text: 'Bronstein lucha con su ingenio habitual, pero Sliwa no afloja la presa.' },
+    { ply: 57, rate: 0.86, text: 'Con material decisivo, Sliwa se impone. Hasta los magos pierden alguna vez.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[56])] = { // #56 Fischer vs Sherwin, 1957
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Un Fischer de catorce años, con las blancas, ya mostrando la fuerza arrolladora que sacudiría al mundo.' },
+    { ply: 7,  rate: 0.96, text: 'Defensa Siciliana en una estructura cerrada; Fischer maniobra con una madurez impropia de su edad.' },
+    { ply: 14, rate: 0.95, text: 'Ambos enrocan; Fischer prepara con paciencia la ruptura en el centro.' },
+    { ply: 21, rate: 0.94, text: 'El centro se abre; las piezas de Fischer ganan actividad y miran al rey negro.' },
+    { ply: 28, rate: 0.93, text: 'Fischer maniobra sus caballos hacia el flanco rey, donde planea el asalto.' },
+    { ply: 35, rate: 0.91, text: 'Sacrificio de caballo en h7: Fischer abre el enroque negro para desatar el ataque.' },
+    { ply: 42, rate: 0.9,  text: 'Los peones y piezas blancas se vuelcan sobre el rey; las negras se defienden a la desesperada.' },
+    { ply: 49, rate: 0.89, text: 'Fischer conduce el ataque con precisión fría, ganando material por el camino.' },
+    { ply: 56, rate: 0.88, text: 'Las piezas blancas convergen; el rey negro no encuentra refugio alguno.' },
+    { ply: 62, rate: 0.87, text: 'Fischer recoge la cosecha con jaques exactos.' },
+    { ply: 65, rate: 0.86, text: 'Jaque y partida sentenciada. El niño Fischer demuestra que el futuro le pertenece.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[57])] = { // #57 Polugaevsky vs Nezhmetdinov, 1958 (Inmortal de Nezhmetdinov)
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Sochi, 1958. Rashid Nezhmetdínov, con las negras, el mayor artista del sacrificio que dio la Unión Soviética, está por firmar su Inmortal.' },
+    { ply: 7,  rate: 0.96, text: 'Defensa India de Rey: Nezhmetdínov cede el centro para luego golpearlo con una furia táctica única.' },
+    { ply: 14, rate: 0.95, text: 'Las piezas se despliegan; el negro orienta todo hacia un ataque sobre el rey enemigo.' },
+    { ply: 21, rate: 0.94, text: 'Nezhmetdínov avanza sus peones del flanco rey, abriendo líneas para sus piezas.' },
+    { ply: 28, rate: 0.92, text: 'El ataque cobra forma: caballos y dama negros se concentran sobre la posición blanca.' },
+    { ply: 35, rate: 0.88, text: '¡Y llega el sacrificio de dama! Nezhmetdínov entrega a su reina por una red de mate de belleza salvaje.' },
+    { ply: 42, rate: 0.88, text: 'Sin la dama, pero con todas las piezas coordinadas, el negro estrecha el cerco sobre el rey blanco.' },
+    { ply: 49, rate: 0.88, text: 'Las piezas negras dominan cada casilla; Polugaevsky se ahoga entre amenazas.' },
+    { ply: 56, rate: 0.87, text: 'El rey blanco vaga sin defensa mientras la maquinaria negra avanza implacable.' },
+    { ply: 62, rate: 0.86, text: 'Nezhmetdínov cierra la red; el mate es inevitable.' },
+    { ply: 66, rate: 0.85, text: '¡Caballo c6, jaque! Polugaevsky abandona. Una de las combinaciones más bellas jamás creadas: la Inmortal de Nezhmetdínov.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[58])] = { // #58 Tal vs Furster, 1958
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Un joven Mijaíl Tal, con las blancas: el Mago de Riga, cuyos sacrificios desafiaban toda lógica y hechizaban al mundo.' },
+    { ply: 7,  rate: 0.96, text: 'Defensa Caro-Kann; Tal desarrolla con rapidez, ansioso por llegar al cuerpo a cuerpo.' },
+    { ply: 14, rate: 0.95, text: 'Las piezas salen al combate; Tal enroca largo y apunta sus fuerzas al rey enemigo.' },
+    { ply: 21, rate: 0.93, text: 'Tal avanza sus peones del flanco rey, abriendo el camino para el ataque.' },
+    { ply: 28, rate: 0.92, text: 'El Mago planta un caballo agresivo y empieza a sacrificar para abrir líneas.' },
+    { ply: 35, rate: 0.9,  text: 'Caen piezas en el fuego del ataque; Tal calcula el caos con una intuición sobrenatural.' },
+    { ply: 42, rate: 0.89, text: 'Las piezas blancas invaden; el rey negro queda expuesto a toda la artillería de Tal.' },
+    { ply: 49, rate: 0.88, text: 'Tal recoge material y acorrala al monarca enemigo con jaques precisos.' },
+    { ply: 55, rate: 0.86, text: 'La red se cierra. Tal sentencia con su magia habitual: otra víctima del Mago de Riga.' },
+  ]
+};
+
+CLASSIC_NARRATION[narrationKey(CLASSIC_GAMES[59])] = { // #59 Averbakh vs Tal, 1958 (URSS)
+  segments: [
+    { ply: 0,  rate: 0.95, text: 'Campeonato de la URSS, 1958. Averbakh, gran experto en finales, con las blancas... contra el joven y volcánico Tal, con las negras.' },
+    { ply: 7,  rate: 0.96, text: 'Defensa Benoni: Tal busca el desequilibrio y el juego dinámico desde la apertura.' },
+    { ply: 14, rate: 0.95, text: 'Ambos enrocan; Tal coloca sus piezas para un contrajuego activo en los flancos.' },
+    { ply: 21, rate: 0.94, text: 'Maniobras de caballos por ambos lados; Tal busca complicar, Averbakh trata de ordenar.' },
+    { ply: 28, rate: 0.93, text: 'Cambios de piezas; la posición se carga de tensión en busca del punto de ruptura.' },
+    { ply: 35, rate: 0.92, text: 'Tal activa sus piezas y dirige la presión hacia el campo blanco.' },
+    { ply: 42, rate: 0.91, text: 'Las negras dominan las columnas abiertas; Averbakh se defiende, pero cede iniciativa.' },
+    { ply: 49, rate: 0.9,  text: 'Tal aprieta sin descanso, creando amenazas que el rival apenas alcanza a parar.' },
+    { ply: 56, rate: 0.89, text: 'La dama y las torres negras penetran; el rey blanco empieza a sentir el peligro.' },
+    { ply: 63, rate: 0.88, text: 'Tal teje la red final con su energía característica; Averbakh ya no halla defensa.' },
+    { ply: 70, rate: 0.86, text: 'Con dominio total, el joven Tal se impone. El Mago de Riga anuncia al mundo lo que está por venir.' },
   ]
 };
 
